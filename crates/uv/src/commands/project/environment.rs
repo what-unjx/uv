@@ -324,7 +324,6 @@ impl CachedEnvironment {
         let venv = uv_virtualenv::create_venv(
             temp_dir.path(),
             interpreter.clone(),
-            uv_virtualenv::Prompt::None,
             false,
             uv_virtualenv::OnExisting::Remove(uv_virtualenv::RemovalReason::TemporaryEnvironment),
             true,

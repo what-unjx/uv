@@ -128,15 +128,21 @@ impl InstalledTools {
     ///
     /// Prefer, in order:
     ///
-    /// 1. The specific tool directory specified by the user, i.e., `UV_TOOL_DIR`
-    /// 2. A directory in the system-appropriate user-level data directory, e.g., `~/.local/uv/tools`
-    /// 3. A directory in the local data directory, e.g., `./.uv/tools`
-    pub fn from_settings() -> Result<Self, Error> {
-        if let Some(tool_dir) = std::env::var_os(EnvVars::UV_TOOL_DIR).filter(|s| !s.is_empty()) {
+    /// 1. `UV_HOME/data/tools/` if `uv_home` is set
+    /// 2. The specific tool directory specified by the user, i.e., `UV_TOOL_DIR`
+    /// 3. A directory in the system-appropriate user-level data directory, e.g., `~/.local/uv/tools`
+    /// 4. A directory in the local data directory, e.g., `./.uv/tools`
+    ///
+    /// [第1次试飞后修正]
+    /// 新增 uv_home 参数；当 UV_HOME 设置时，工具存储在 UV_HOME/data/tools/ 下
+    pub fn from_settings(uv_home: Option<PathBuf>) -> Result<Self, Error> {
+        if let Some(uv_home) = uv_home {
+            Ok(Self::from_path(uv_home.join("data").join("tools")))
+        } else if let Some(tool_dir) = std::env::var_os(EnvVars::UV_TOOL_DIR).filter(|s| !s.is_empty()) {
             Ok(Self::from_path(std::path::absolute(tool_dir)?))
         } else {
             Ok(Self::from_path(
-                StateStore::from_settings(None)?.bucket(StateBucket::Tools),
+                StateStore::from_settings(None, None)?.bucket(StateBucket::Tools),
             ))
         }
     }
@@ -343,7 +349,6 @@ impl InstalledTools {
         let venv = uv_virtualenv::create_venv(
             &environment_path,
             interpreter,
-            uv_virtualenv::Prompt::None,
             false,
             uv_virtualenv::OnExisting::Remove(uv_virtualenv::RemovalReason::ManagedEnvironment),
             false,
@@ -384,8 +389,15 @@ impl InstalledTools {
 }
 
 /// Find the tool executable directory.
-pub fn tool_executable_dir() -> Result<PathBuf, Error> {
-    user_executable_directory(Some(EnvVars::UV_TOOL_BIN_DIR)).ok_or(Error::NoExecutableDirectory)
+///
+/// [第1次试飞后修正]
+/// 新增 uv_home 参数；当 UV_HOME 设置时，可执行文件存储在 UV_HOME/bin/ 下
+pub fn tool_executable_dir(uv_home: Option<PathBuf>) -> Result<PathBuf, Error> {
+    if let Some(uv_home) = uv_home {
+        Ok(uv_home.join("bin"))
+    } else {
+        user_executable_directory(Some(EnvVars::UV_TOOL_BIN_DIR)).ok_or(Error::NoExecutableDirectory)
+    }
 }
 
 /// Find the `.dist-info` directory for a package in an environment.

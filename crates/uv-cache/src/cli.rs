@@ -35,14 +35,20 @@ impl Cache {
     /// Prefer, in order:
     ///
     /// 1. A temporary cache directory, if the user requested `--no-cache`.
-    /// 2. The specific cache directory specified by the user via `--cache-dir` or `UV_CACHE_DIR`.
-    /// 3. The system-appropriate cache directory.
-    /// 4. A `.uv_cache` directory in the current working directory.
+    /// 2. `UV_HOME/cache/` if `uv_home` is set.
+    /// 3. The specific cache directory specified by the user via `--cache-dir` or `UV_CACHE_DIR`.
+    /// 4. The system-appropriate cache directory.
+    /// 5. A `.uv_cache` directory in the current working directory.
     ///
     /// Returns an absolute cache dir.
-    pub fn from_settings(no_cache: bool, cache_dir: Option<PathBuf>) -> Result<Self, io::Error> {
+    ///
+    /// [第1次试飞后修正]
+    /// 新增 uv_home 参数；当 UV_HOME 设置时，缓存存储在 UV_HOME/cache/ 下
+    pub fn from_settings(no_cache: bool, cache_dir: Option<PathBuf>, uv_home: Option<PathBuf>) -> Result<Self, io::Error> {
         if no_cache {
             Self::temp()
+        } else if let Some(uv_home) = uv_home {
+            Ok(Self::from_path(uv_home.join("cache")))
         } else if let Some(cache_dir) = cache_dir {
             Ok(Self::from_path(cache_dir))
         } else if let Some(cache_dir) = uv_dirs::legacy_user_cache_dir().filter(|dir| dir.exists())
@@ -82,7 +88,8 @@ impl TryFrom<CacheArgs> for Cache {
     type Error = io::Error;
 
     fn try_from(value: CacheArgs) -> Result<Self, Self::Error> {
-        Self::from_settings(value.no_cache, value.cache_dir)
+        // [第1次试飞后修正] uv_home 从全局配置解析，这里通过 CacheArgs 无法获取，传 None
+        Self::from_settings(value.no_cache, value.cache_dir, None)
     }
 }
 

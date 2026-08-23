@@ -53,34 +53,10 @@ impl uv_errors::Hint for Error {
     }
 }
 
-/// The value to use for the shell prompt when inside a virtual environment.
-#[derive(Debug)]
-pub enum Prompt {
-    /// Use the current directory name as the prompt.
-    CurrentDirectoryName,
-    /// Use the fixed string as the prompt.
-    Static(String),
-    /// Default to no prompt. The prompt is then set by the activator script
-    /// to the virtual environment's directory name.
-    None,
-}
-
-impl Prompt {
-    /// Determine the prompt value to be used from the command line arguments.
-    pub fn from_args(prompt: Option<String>) -> Self {
-        match prompt {
-            Some(prompt) if prompt == "." => Self::CurrentDirectoryName,
-            Some(prompt) => Self::Static(prompt),
-            None => Self::None,
-        }
-    }
-}
-
 /// Create a virtualenv.
 pub fn create_venv(
     location: &Path,
     interpreter: Interpreter,
-    prompt: Prompt,
     system_site_packages: bool,
     on_existing: OnExisting,
     relocatable: bool,
@@ -91,7 +67,6 @@ pub fn create_venv(
     let virtualenv = virtualenv::create(
         location,
         &interpreter,
-        prompt,
         system_site_packages,
         on_existing,
         relocatable,

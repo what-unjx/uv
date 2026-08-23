@@ -397,6 +397,8 @@ fn warn_uv_toml_masked_fields(options: &Options) {
                 http_proxy,
                 https_proxy,
                 no_proxy,
+                // [第1次试飞后修正] 新增：home 字段解构
+                home: _,
             },
         top_level:
             ResolverInstallerSchema {

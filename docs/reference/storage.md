@@ -12,6 +12,52 @@ The paths of storage directories are platform-specific. uv follows the
 and the [Known Folder](https://learn.microsoft.com/en-us/windows/win32/shell/known-folders) scheme
 on Windows.
 
+### Unified storage root (`UV_HOME`)
+
+Instead of configuring each storage directory individually, uv supports a unified storage root
+directory via the `UV_HOME` environment variable or the `home` setting in `uv.toml`. When set, all
+uv storage subdirectories are created under this single root, providing a self-contained and
+consistent layout.
+
+**Configuration.** The `UV_HOME` environment variable takes highest precedence. Alternatively, the
+same value can be set persistently in the user-level configuration file
+(`%APPDATA%\uv\uv.toml` on Windows, `~/.config/uv/uv.toml` on Unix):
+
+```toml title="uv.toml"
+home = "/path/to/uv/home"
+```
+
+uv requires one of these two to be configured. If neither `UV_HOME` nor the `home` setting is
+present, uv will exit with an error instructing the user to set one of them.
+
+**Directory layout.** Under the unified root, uv creates the following structure:
+
+```
+UV_HOME/
+├── cache/                      # Package cache (equivalent to UV_CACHE_DIR)
+│   └── python/                 # Python download cache (equivalent to UV_PYTHON_CACHE_DIR)
+├── data/                       # Persistent state root
+│   ├── tools/                  # Installed tools (equivalent to UV_TOOL_DIR)
+│   ├── python/                 # Managed Python installations (equivalent to UV_PYTHON_INSTALL_DIR)
+│   └── credentials/            # Credential storage (equivalent to UV_CREDENTIALS_DIR)
+└── bin/                        # Executables (equivalent to UV_TOOL_BIN_DIR and UV_PYTHON_BIN_DIR)
+```
+
+**Interaction with individual directory settings.** When `UV_HOME` is set, all individual directory
+environment variables (`UV_CACHE_DIR`, `UV_TOOL_DIR`, `UV_TOOL_BIN_DIR`, `UV_PYTHON_INSTALL_DIR`,
+`UV_PYTHON_BIN_DIR`, `UV_PYTHON_CACHE_DIR`, `UV_CREDENTIALS_DIR`) are ignored in favor of the
+corresponding subdirectory under `UV_HOME`. Command-line flags such as `--cache-dir` and
+`--no-cache` still take effect as usual.
+
+**Design rationale.** This approach mirrors the convention used by Rust's `cargo` toolchain
+(`~/.cargo/` containing `bin/`, `registry/`, and `git/`) and provides several benefits:
+
+- **Self-contained installation.** All uv-managed data lives under a single directory, making it
+  easy to relocate, back up, or remove.
+- **Consistent PATH setup.** Adding `UV_HOME/bin/` to the system `PATH` gives access to both
+  uv-installed tools (`uv tool install`) and managed Python executables (`uv python install`).
+- **Simplified configuration.** One setting replaces up to seven individual environment variables.
+
 ### Temporary directory
 
 The temporary directory is used for ephemeral data.
@@ -112,6 +158,9 @@ via command line arguments, environment variables, or settings as detailed in
 [the cache documentation](../concepts/cache.md#cache-directory). When the cache is disabled, the
 cache will be stored in a [temporary directory](#temporary-directory).
 
+When the [unified storage root](#unified-storage-root-uv_home) is configured, the cache is placed
+at `UV_HOME/cache/` instead, and `UV_CACHE_DIR` is ignored.
+
 Use `uv cache dir` to show the current cache directory path.
 
 !!! important
@@ -127,6 +176,9 @@ uv can install managed [Python versions](../concepts/python-versions.md), e.g., 
 By default, Python versions managed by uv are stored in a `python/` subdirectory of the
 [persistent data directory](#persistent-data-directory), e.g., `~/.local/share/uv/python`.
 
+When the [unified storage root](#unified-storage-root-uv_home) is configured, Python installations
+are placed at `UV_HOME/data/python/` instead, and `UV_PYTHON_INSTALL_DIR` is ignored.
+
 Use `uv python dir` to show the Python installation directory.
 
 Use the `UV_PYTHON_INSTALL_DIR` environment variable to override the installation directory.
@@ -141,6 +193,10 @@ uv installs executables for [Python versions](#python-versions), e.g., `python3.
 
 By default, Python executables are stored in the [executable directory](#executable-directory).
 
+When the [unified storage root](#unified-storage-root-uv_home) is configured, Python executables
+are placed at `UV_HOME/bin/` instead, and both `UV_PYTHON_BIN_DIR` and `UV_TOOL_BIN_DIR` are
+ignored.
+
 Use `uv python dir --bin` to show the Python executable directory.
 
 Use the `UV_PYTHON_BIN_DIR` environment variable to override the Python executable directory.
@@ -153,6 +209,9 @@ uv can install Python packages as [command-line tools](../concepts/tools.md) usi
 By default, tools are installed in a `tools/` subdirectory of the
 [persistent data directory](#persistent-data-directory), e.g., `~/.local/share/uv/tools`.
 
+When the [unified storage root](#unified-storage-root-uv_home) is configured, tools are placed at
+`UV_HOME/data/tools/` instead, and `UV_TOOL_DIR` is ignored.
+
 Use `uv tool dir` to show the tool installation directory.
 
 Use the `UV_TOOL_DIR` environment variable to configure the installation directory.
@@ -162,6 +221,9 @@ Use the `UV_TOOL_DIR` environment variable to configure the installation directo
 uv installs executables for installed [tools](#tools), e.g., `ruff`.
 
 By default, tool executables are stored in the [executable directory](#executable-directory).
+
+When the [unified storage root](#unified-storage-root-uv_home) is configured, tool executables are
+placed at `UV_HOME/bin/` instead, and both `UV_TOOL_BIN_DIR` and `UV_PYTHON_BIN_DIR` are ignored.
 
 Use `uv tool dir --bin` to show the tool executable directory.
 

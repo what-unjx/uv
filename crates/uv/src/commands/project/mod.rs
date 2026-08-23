@@ -1969,32 +1969,12 @@ impl ProjectEnvironment {
                     }
                 };
 
-                // Determine a prompt for the environment, in order of preference:
-                //
-                // 1) The name of the project
-                // 2) The name of the directory at the root of the workspace
-                // 3) No prompt
-                let prompt = workspace
-                    .pyproject_toml()
-                    .project
-                    .as_ref()
-                    .map(|p| p.name.to_string())
-                    .or_else(|| {
-                        workspace
-                            .install_path()
-                            .file_name()
-                            .map(|f| f.to_string_lossy().to_string())
-                    })
-                    .map(uv_virtualenv::Prompt::Static)
-                    .unwrap_or(uv_virtualenv::Prompt::None);
-
                 // Under `--dry-run`, avoid modifying the environment.
                 if dry_run.enabled() {
                     let temp_dir = cache.venv_dir()?;
                     let environment = uv_virtualenv::create_venv(
                         temp_dir.path(),
                         interpreter,
-                        prompt,
                         false,
                         uv_virtualenv::OnExisting::Remove(
                             uv_virtualenv::RemovalReason::ManagedEnvironment,
@@ -2055,7 +2035,6 @@ impl ProjectEnvironment {
                 let environment = uv_virtualenv::create_venv(
                     &root,
                     interpreter,
-                    prompt,
                     false,
                     uv_virtualenv::OnExisting::Remove(
                         uv_virtualenv::RemovalReason::ManagedEnvironment,
@@ -2192,24 +2171,12 @@ impl ScriptEnvironment {
             ScriptInterpreter::Interpreter(interpreter) => {
                 let root = ScriptInterpreter::root(script, active, cache);
 
-                // Determine a prompt for the environment, in order of preference:
-                //
-                // 1) The name of the script
-                // 2) No prompt
-                let prompt = script
-                    .path()
-                    .and_then(|path| path.file_name())
-                    .map(|f| f.to_string_lossy().to_string())
-                    .map(uv_virtualenv::Prompt::Static)
-                    .unwrap_or(uv_virtualenv::Prompt::None);
-
                 // Under `--dry-run`, avoid modifying the environment.
                 if dry_run.enabled() {
                     let temp_dir = cache.venv_dir()?;
                     let environment = uv_virtualenv::create_venv(
                         temp_dir.path(),
                         interpreter,
-                        prompt,
                         false,
                         uv_virtualenv::OnExisting::Remove(
                             uv_virtualenv::RemovalReason::ManagedEnvironment,
@@ -2246,7 +2213,6 @@ impl ScriptEnvironment {
                 let environment = uv_virtualenv::create_venv(
                     &root,
                     interpreter,
-                    prompt,
                     false,
                     uv_virtualenv::OnExisting::Remove(
                         uv_virtualenv::RemovalReason::ManagedEnvironment,

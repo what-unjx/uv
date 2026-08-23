@@ -8,7 +8,7 @@ trim_trailing_whitespace = true
 end_of_line = lf
 indent_style = space
 insert_final_newline = true
-indent_size = 2
+indent_size = 4
 
 [*.{rs,py,pyi}]
 indent_size = 4
@@ -18,6 +18,3 @@ trim_trailing_whitespace = false
 
 [crates/uv/tests/help.rs]
 trim_trailing_whitespace = false
-
-[*.md]
-max_line_length = 100

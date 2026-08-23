@@ -58,12 +58,7 @@ deactivate -nondestructive
 $VIRTUAL_ENV = $BASE_DIR
 $env:VIRTUAL_ENV = $VIRTUAL_ENV
 
-if ("{{ VIRTUAL_PROMPT }}" -ne "") {
-    $env:VIRTUAL_ENV_PROMPT = "{{ VIRTUAL_PROMPT }}"
-}
-else {
-    $env:VIRTUAL_ENV_PROMPT = $( Split-Path $env:VIRTUAL_ENV -Leaf )
-}
+$env:VIRTUAL_ENV_PROMPT = $( Split-Path $env:VIRTUAL_ENV -Leaf )
 
 New-Variable -Scope global -Name _OLD_VIRTUAL_PATH -Value $env:PATH
 

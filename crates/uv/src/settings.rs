@@ -90,6 +90,8 @@ pub(crate) struct GlobalSettings {
     pub(crate) python_downloads: PythonDownloads,
     pub(crate) no_progress: bool,
     pub(crate) installer_metadata: bool,
+    // [第1次试飞后修正] 新增：统一存储根目录
+    pub(crate) uv_home: Option<PathBuf>,
 }
 
 impl GlobalSettings {
@@ -104,6 +106,12 @@ impl GlobalSettings {
             NetworkSettings::resolve(args, workspace, environment, custom_certificate_file)?;
         let python_preference = resolve_python_preference(args, workspace, environment)?;
         let color = resolve_color(args);
+        // [第1次试飞后修正]
+        // 解析 UV_HOME：优先使用环境变量 UV_HOME，其次使用 uv.toml 中的 home 配置
+        let uv_home = std::env::var_os(EnvVars::UV_HOME)
+            .filter(|s| !s.is_empty())
+            .map(PathBuf::from)
+            .or_else(|| workspace.and_then(|w| w.globals.home.clone()));
         Ok(Self {
             required_version: workspace
                 .and_then(|workspace| workspace.globals.required_version.clone()),
@@ -159,6 +167,8 @@ impl GlobalSettings {
                 environment.no_installer_metadata,
             )
             .is_enabled(),
+            // [第1次试飞后修正] 存储 uv_home
+            uv_home,
         })
     }
 }
@@ -432,11 +442,18 @@ impl NetworkSettings {
 pub(crate) struct CacheSettings {
     pub(crate) no_cache: bool,
     pub(crate) cache_dir: Option<PathBuf>,
+    // [第1次试飞后修正] 新增：统一存储根目录
+    pub(crate) uv_home: Option<PathBuf>,
 }
 
 impl CacheSettings {
     /// Resolve the [`CacheSettings`] from the CLI and filesystem configuration.
-    pub(crate) fn resolve(args: CacheArgs, workspace: Option<&FilesystemOptions>) -> Self {
+    pub(crate) fn resolve(
+        args: CacheArgs,
+        workspace: Option<&FilesystemOptions>,
+        // [第1次试飞后修正] 传入 globals 解析的 uv_home
+        uv_home: Option<PathBuf>,
+    ) -> Self {
         Self {
             no_cache: args.no_cache
                 || workspace
@@ -445,6 +462,7 @@ impl CacheSettings {
             cache_dir: args
                 .cache_dir
                 .or_else(|| workspace.and_then(|workspace| workspace.globals.cache_dir.clone())),
+            uv_home,
         }
     }
 }
@@ -4248,7 +4266,6 @@ pub(crate) struct VenvSettings {
     pub(crate) force: bool,
     pub(crate) no_clear: bool,
     pub(crate) path: Option<PathBuf>,
-    pub(crate) prompt: Option<String>,
     pub(crate) system_site_packages: bool,
     pub(crate) relocatable: bool,
     pub(crate) no_relocatable: bool,
@@ -4274,7 +4291,6 @@ impl VenvSettings {
             force,
             no_clear,
             path,
-            prompt,
             system_site_packages,
             relocatable,
             no_relocatable,
@@ -4321,7 +4337,6 @@ impl VenvSettings {
             force,
             no_clear: no_clear.into(),
             path,
-            prompt,
             system_site_packages,
             no_project,
             relocatable: relocatable.into(),

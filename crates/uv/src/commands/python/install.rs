@@ -36,6 +36,8 @@ use uv_python::{
     VersionFileDiscoveryOptions, VersionFilePreference, VersionRequest,
 };
 use uv_shell::Shell;
+// [第1次试飞后修正] 新增 EnvVars 导入
+use uv_static::EnvVars;
 use uv_trampoline_builder::{Launcher, LauncherKind};
 use uv_warnings::warn_user;
 
@@ -326,7 +328,12 @@ async fn perform_install(
     }
 
     // Read the existing installations, lock the directory for the duration
-    let installations = ManagedPythonInstallations::from_settings(install_dir.clone())?.init()?;
+    // [第1次试飞后修正] 传入 uv_home
+    let uv_home = std::env::var_os(EnvVars::UV_HOME)
+        .filter(|s| !s.is_empty())
+        .map(PathBuf::from);
+    let installations =
+        ManagedPythonInstallations::from_settings(install_dir.clone(), uv_home)?.init()?;
     let installations_dir = installations.root();
     let scratch_dir = installations.scratch();
     let _lock = installations.lock().await?;
@@ -666,7 +673,11 @@ async fn perform_install(
     let bin_dir = if matches!(bin, Some(false)) {
         None
     } else {
-        Some(python_executable_dir()?)
+        // [第1次试飞后修正] 传入 uv_home
+        let uv_home = std::env::var_os(EnvVars::UV_HOME)
+            .filter(|s| !s.is_empty())
+            .map(PathBuf::from);
+        Some(python_executable_dir(uv_home)?)
     };
 
     let installations: Vec<_> = downloaded.iter().chain(satisfied.iter().copied()).collect();

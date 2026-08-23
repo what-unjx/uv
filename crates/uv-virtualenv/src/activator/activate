@@ -98,11 +98,7 @@ _OLD_VIRTUAL_PATH="$PATH"
 PATH="$VIRTUAL_ENV/{{ BIN_NAME }}:$PATH"
 export PATH
 
-if [ "x{{ VIRTUAL_PROMPT }}" != x ] ; then
-    VIRTUAL_ENV_PROMPT="{{ VIRTUAL_PROMPT }}"
-else
-    VIRTUAL_ENV_PROMPT=$(basename "$VIRTUAL_ENV")
-fi
+VIRTUAL_ENV_PROMPT=$(basename "$VIRTUAL_ENV")
 export VIRTUAL_ENV_PROMPT
 
 # unset PYTHONHOME if set

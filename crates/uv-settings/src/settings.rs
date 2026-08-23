@@ -436,6 +436,22 @@ pub struct GlobalOptions {
         "#
     )]
     pub allow_insecure_host: Option<Vec<TrustedHost>>,
+    /// Root directory for all uv storage (cache, tools, Python installations, credentials, etc.).
+    ///
+    /// When set, acts as the base for all uv storage:
+    /// `home/cache/`, `home/data/tools/`, `home/data/python/`, `home/data/credentials/`, `home/bin/`.
+    ///
+    /// [第1次试飞后修正]
+    /// 新增：home 字段，用于在 uv.toml 中配置 UV_HOME 替代方案
+    #[option(
+        default = "None",
+        value_type = "str",
+        uv_toml_only = true,
+        example = r#"
+            home = "/path/to/uv/home"
+        "#
+    )]
+    pub home: Option<PathBuf>,
 }
 
 /// Like [`GlobalOptions`], but with any `#[serde(flatten)]` fields inlined.
@@ -462,6 +478,8 @@ struct GlobalOptionsWire {
     https_proxy: Option<ProxyUrl>,
     no_proxy: Option<Vec<String>>,
     allow_insecure_host: Option<Vec<TrustedHost>>,
+    // [第1次试飞后修正] 新增：home 字段用于 uv.toml 全局配置
+    home: Option<PathBuf>,
 }
 
 impl TryFrom<GlobalOptionsWire> for GlobalOptions {
@@ -487,6 +505,8 @@ impl TryFrom<GlobalOptionsWire> for GlobalOptions {
             https_proxy,
             no_proxy,
             allow_insecure_host,
+            // [第1次试飞后修正] 新增：home 字段映射
+            home,
         } = value;
 
         Ok(Self {
@@ -506,6 +526,8 @@ impl TryFrom<GlobalOptionsWire> for GlobalOptions {
             https_proxy,
             no_proxy,
             allow_insecure_host,
+            // [第1次试飞后修正] 新增：home 字段映射
+            home,
         })
     }
 }
@@ -2565,6 +2587,7 @@ struct OptionsWire {
     concurrent_downloads: Option<NonZeroUsize>,
     concurrent_builds: Option<NonZeroUsize>,
     concurrent_installs: Option<NonZeroUsize>,
+    home: Option<PathBuf>,
 
     // #[serde(flatten)]
     // top_level: ResolverInstallerOptions
@@ -2674,6 +2697,7 @@ impl TryFrom<OptionsWire> for Options {
             concurrent_downloads,
             concurrent_builds,
             concurrent_installs,
+            home,
             index,
             index_url,
             extra_index_url,
@@ -2755,6 +2779,8 @@ impl TryFrom<OptionsWire> for Options {
                 no_proxy,
                 // Used twice for backwards compatibility
                 allow_insecure_host: allow_insecure_host.clone(),
+                // [第1次试飞后修正] 从 uv.toml 中读取 home 配置
+                home,
             },
             top_level: ResolverInstallerSchema {
                 index,

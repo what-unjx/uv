@@ -63,6 +63,17 @@ impl EnvVars {
     #[attr_added_in("0.9.8")]
     pub const UV_NO_SOURCES: &'static str = "UV_NO_SOURCES";
 
+    /// Specifies the root directory for all uv storage (cache, tools, Python installations, credentials, etc.).
+    ///
+    /// When set, all storage subdirectories are created under this path:
+    /// `cache/`, `data/tools/`, `data/python/`, `data/credentials/`, `bin/`.
+    /// Individual directory environment variables (`UV_CACHE_DIR`, `UV_TOOL_DIR`, etc.) are ignored when `UV_HOME` is set.
+    ///
+    /// [第1次试飞后修正]
+    /// 新增：UV_HOME 统一存储根目录环境变量
+    #[attr_added_in("0.0.0")]
+    pub const UV_HOME: &'static str = "UV_HOME";
+
     /// Equivalent to the `--cache-dir` command-line argument. If set, uv will use this
     /// directory for caching instead of the default cache directory.
     #[attr_added_in("0.0.5")]

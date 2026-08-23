@@ -243,7 +243,13 @@ pub struct TextCredentialStore {
 
 impl TextCredentialStore {
     /// Return the directory for storing credentials.
-    pub fn directory_path() -> Result<PathBuf, TomlCredentialError> {
+    ///
+    /// [第1次试飞后修正]
+    /// 新增 uv_home 参数；当 UV_HOME 设置时，凭据存储在 UV_HOME/data/credentials/ 下
+    pub fn directory_path(uv_home: Option<PathBuf>) -> Result<PathBuf, TomlCredentialError> {
+        if let Some(uv_home) = uv_home {
+            return Ok(uv_home.join("data").join("credentials"));
+        }
         if let Some(dir) = std::env::var_os(EnvVars::UV_CREDENTIALS_DIR)
             .filter(|s| !s.is_empty())
             .map(PathBuf::from)
@@ -251,12 +257,16 @@ impl TextCredentialStore {
             return Ok(dir);
         }
 
-        Ok(StateStore::from_settings(None)?.bucket(StateBucket::Credentials))
+        Ok(StateStore::from_settings(None, None)?.bucket(StateBucket::Credentials))
     }
 
     /// Return the standard file path for storing credentials.
     pub fn default_file() -> Result<PathBuf, TomlCredentialError> {
-        let dir = Self::directory_path()?;
+        // [第1次试飞后修正] 需要传入 uv_home，此处调用方尚未传递，暂时使用 env var 直接判断
+        let uv_home = std::env::var_os(EnvVars::UV_HOME)
+            .filter(|s| !s.is_empty())
+            .map(PathBuf::from);
+        let dir = Self::directory_path(uv_home)?;
         Ok(dir.join("credentials.toml"))
     }
 

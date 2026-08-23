@@ -1,4 +1,5 @@
 use std::fmt::Write;
+use std::path::PathBuf;
 use std::str::FromStr;
 
 use anyhow::{Result, bail};
@@ -22,12 +23,14 @@ use uv_normalize::PackageName;
 use uv_pep440::{VersionSpecifier, VersionSpecifiers};
 use uv_pep508::MarkerTree;
 use uv_preview::{Preview, PreviewFeature};
+// [第1次试飞后修正] 新增 EnvVars 导入
 use uv_python::{
     ConfigDiscovery, EnvironmentPreference, Interpreter, PythonDownloads, PythonEnvironment,
     PythonInstallation, PythonPreference, PythonRequest,
 };
 use uv_requirements::{RequirementsSource, RequirementsSpecification};
 use uv_settings::{PythonInstallMirrors, ResolverInstallerOptions, ToolOptions};
+use uv_static::EnvVars;
 use uv_tool::{InstalledTools, Tool};
 use uv_types::{HashStrategy, SourceTreeEditablePolicy};
 use uv_warnings::{warn_user, warn_user_once};
@@ -465,7 +468,11 @@ pub(crate) async fn install(
         &settings.resolver.dependency_metadata,
     );
 
-    let installed_tools = InstalledTools::from_settings()?.init()?;
+    // [第1次试飞后修正] 传入 uv_home
+    let uv_home = std::env::var_os(EnvVars::UV_HOME)
+        .filter(|s| !s.is_empty())
+        .map(PathBuf::from);
+    let installed_tools = InstalledTools::from_settings(uv_home)?.init()?;
     let _lock = installed_tools.lock().await?;
     let tool_dir = installed_tools.tool_dir(package_name);
 

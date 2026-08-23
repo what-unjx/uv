@@ -316,9 +316,11 @@ async fn run_with_workspace_cache(
     //    starting from the current directory.
 
     // Pass the (possibly non-existent) cache dir path to the initial workspace discovery.
+    // [第1次试飞后修正] 发现阶段 uv_home 尚未解析，传 None
     let discovery_cache = Cache::from_settings(
         cli.top_level.cache_args.no_cache,
         cli.top_level.cache_args.cache_dir.clone(),
+        None,
     )?;
     let filesystem = if let Some(config_file) = cli.top_level.config_file.as_ref() {
         if config_file
@@ -546,7 +548,24 @@ async fn run_with_workspace_cache(
     }
 
     // Resolve the cache settings.
-    let cache_settings = CacheSettings::resolve(*cli.top_level.cache_args, filesystem.as_ref());
+    // [第1次试飞后修正] 传入 uv_home
+    let cache_settings = CacheSettings::resolve(
+        *cli.top_level.cache_args,
+        filesystem.as_ref(),
+        globals.uv_home.clone(),
+    );
+
+    // [第1次试飞后修正]
+    // 强制要求：必须设置 UV_HOME 环境变量 或 在 uv.toml 中配置 home
+    if cache_settings.uv_home.is_none() {
+        return Err(anyhow::anyhow!(
+            "UV_HOME is not set.\n\n\
+            Set the `UV_HOME` environment variable or add `home = \"...\"` to your uv.toml \
+            to configure the base storage directory for all uv data.\n\n\
+            Example:\n  export UV_HOME=/path/to/uv/home\n\n\
+            or in uv.toml:\n  home = \"/path/to/uv/home\""
+        ));
+    }
 
     if global_initialization.needs_initialization() {
         // Set and finalize the global preview configuration.
@@ -611,7 +630,12 @@ async fn run_with_workspace_cache(
     if cache_settings.no_cache {
         debug!("Disabling the uv cache due to `--no-cache`");
     }
-    let cache = Cache::from_settings(cache_settings.no_cache, cache_settings.cache_dir)?;
+    // [第1次试飞后修正] 传入 uv_home
+    let cache = Cache::from_settings(
+        cache_settings.no_cache,
+        cache_settings.cache_dir,
+        cache_settings.uv_home.clone(),
+    )?;
     // This check happens after the first (fallible) workspace discovery, which we need to resolve
     // the settings that go into the cache constructor, but the check happens before the first
     // workspace discovery that's used beyond settings discovery.
@@ -1405,15 +1429,6 @@ async fn run_with_workspace_cache(
                     .combine(Refresh::from(args.settings.upgrade.clone())),
             );
 
-            // Since we use ".venv" as the default name, we use "." as the default prompt.
-            let prompt = args.prompt.or_else(|| {
-                if args.path.is_none() {
-                    Some(".".to_string())
-                } else {
-                    None
-                }
-            });
-
             let python_request: Option<PythonRequest> =
                 args.settings.python.as_deref().map(PythonRequest::parse);
 
@@ -1441,7 +1456,6 @@ async fn run_with_workspace_cache(
                 args.settings.dependency_metadata,
                 args.settings.keyring_provider,
                 &client_builder.subcommand(vec!["venv".to_owned()]),
-                uv_virtualenv::Prompt::from_args(prompt),
                 args.system_site_packages,
                 uv_virtualenv::Seed::from_args(args.seed),
                 on_existing,

@@ -3225,22 +3225,12 @@ pub struct VenvArgs {
 
     /// The path to the virtual environment to create.
     ///
-    /// Default to `.venv` in the working directory.
+    /// Default to `.venv` in the working directory. Use `--path` to create the virtual
+    /// environment in a different directory.
     ///
     /// Relative paths are resolved relative to the working directory.
-    #[arg(value_hint = ValueHint::DirPath)]
+    #[arg(long, value_hint = ValueHint::DirPath)]
     pub path: Option<PathBuf>,
-
-    /// Provide an alternative prompt prefix for the virtual environment.
-    ///
-    /// By default, the prompt is dependent on whether a path was provided to `uv venv`. If provided
-    /// (e.g, `uv venv project`), the prompt is set to the directory name. If not provided
-    /// (`uv venv`), the prompt is set to the current directory's name.
-    ///
-    /// If "." is provided, the current directory name will be used regardless of whether a path was
-    /// provided to `uv venv`.
-    #[arg(long, verbatim_doc_comment, value_hint = ValueHint::Other)]
-    pub prompt: Option<String>,
 
     /// Give the virtual environment access to the system site packages directory.
     ///

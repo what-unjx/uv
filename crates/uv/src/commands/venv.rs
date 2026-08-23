@@ -79,7 +79,6 @@ pub(crate) async fn venv(
     dependency_metadata: DependencyMetadata,
     keyring_provider: KeyringProviderType,
     client_builder: &BaseClientBuilder<'_>,
-    prompt: uv_virtualenv::Prompt,
     system_site_packages: bool,
     seed: Seed,
     on_existing: OnExisting,
@@ -274,7 +273,6 @@ pub(crate) async fn venv(
     let venv = uv_virtualenv::create_venv(
         &path,
         interpreter,
-        prompt,
         system_site_packages,
         on_existing,
         relocatable,

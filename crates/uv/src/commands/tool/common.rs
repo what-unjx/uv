@@ -46,6 +46,8 @@ use uv_resolver::{
 };
 use uv_settings::{PythonInstallMirrors, ToolOptions};
 use uv_shell::Shell;
+// [第1次试飞后修正] 新增 EnvVars 导入
+use uv_static::EnvVars;
 use uv_tool::{InstalledTools, Tool, ToolEntrypoint, entrypoint_paths};
 use uv_types::{BuildIsolation, HashStrategy, SourceTreeEditablePolicy};
 use uv_warnings::warn_user_once;
@@ -744,7 +746,11 @@ pub(crate) fn finalize_tool_install(
     lock: Option<&ToolLock>,
     printer: Printer,
 ) -> anyhow::Result<()> {
-    let executable_directory = uv_tool::tool_executable_dir()?;
+    // [第1次试飞后修正] 传入 uv_home
+    let uv_home = std::env::var_os(EnvVars::UV_HOME)
+        .filter(|s| !s.is_empty())
+        .map(std::path::PathBuf::from);
+    let executable_directory = uv_tool::tool_executable_dir(uv_home)?;
     fs_err::create_dir_all(&executable_directory)
         .context("Failed to create executable directory")?;
     debug!(

@@ -14,8 +14,8 @@ use owo_colors::OwoColorize;
 
 use tracing::{debug, trace};
 
-use crate::{Error, Prompt};
-use uv_fs::{CWD, PythonExt, Simplified, cachedir};
+use crate::Error;
+use uv_fs::{PythonExt, Simplified, cachedir};
 use uv_platform_tags::Os;
 use uv_preview::PreviewFeature;
 use uv_pypi_types::Scheme;
@@ -65,7 +65,6 @@ fn write_cfg(f: &mut impl Write, data: &[(String, String)]) -> io::Result<()> {
 pub(crate) fn create(
     location: &Path,
     interpreter: &Interpreter,
-    prompt: Prompt,
     system_site_packages: bool,
     on_existing: OnExisting,
     relocatable: bool,
@@ -88,16 +87,9 @@ pub(crate) fn create(
         base_python.display()
     );
 
-    // Extract the prompt and compute the absolute path prior to validating the location; otherwise,
+    // Compute the absolute path prior to validating the location; otherwise,
     // we risk deleting (and recreating) the current working directory, which would cause the `CWD`
     // queries to fail.
-    let prompt = match prompt {
-        Prompt::CurrentDirectoryName => CWD
-            .file_name()
-            .map(|name| name.to_string_lossy().to_string()),
-        Prompt::Static(value) => Some(value),
-        Prompt::None => None,
-    };
     let absolute = std::path::absolute(location)?;
 
     // Validate the path before creating the virtual environment, since some filesystems, e.g.,
@@ -516,15 +508,6 @@ pub(crate) fn create(
             _ => escape_posix_for_single_quotes(location_string),
         };
 
-        let virtual_prompt = prompt.as_deref().unwrap_or_default();
-        let virtual_prompt = match *name {
-            "activate.xsh" => Cow::Owned(format!(
-                r#"b"{}".decode("utf-8")"#,
-                virtual_prompt.as_bytes().escape_ascii(),
-            )),
-            _ => Cow::Borrowed(virtual_prompt),
-        };
-
         let bin_name = match *name {
             "activate.xsh" => Cow::Owned(bin_name.escape_for_python()),
             _ => Cow::Borrowed(bin_name),
@@ -533,7 +516,6 @@ pub(crate) fn create(
         let activator = template
             .replace("{{ VIRTUAL_ENV_DIR }}", &virtual_env_dir)
             .replace("{{ BIN_NAME }}", &bin_name)
-            .replace("{{ VIRTUAL_PROMPT }}", &virtual_prompt)
             .replace("{{ PATH_SEP }}", path_sep)
             .replace("{{ RELATIVE_SITE_PACKAGES }}", &relative_site_packages);
         fs_err::write(scripts.join(name), activator)?;
@@ -577,10 +559,6 @@ pub(crate) fn create(
     match seed {
         Seed::Enabled => pyvenv_cfg_data.push(("seed".to_string(), "true".to_string())),
         Seed::Disabled => {}
-    }
-
-    if let Some(prompt) = prompt {
-        pyvenv_cfg_data.push(("prompt".to_string(), prompt));
     }
 
     if cfg!(windows) && interpreter.markers().implementation_name() == "graalpy" {

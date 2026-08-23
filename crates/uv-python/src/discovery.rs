@@ -387,7 +387,7 @@ fn python_executables_from_installed<'a>(
     preference: PythonPreference,
 ) -> Box<dyn Iterator<Item = Result<PythonExecutableGroup, Error>> + 'a> {
     let from_managed_installations = iter::once_with(move || {
-        ManagedPythonInstallations::from_settings(None)
+        ManagedPythonInstallations::from_settings(None, None)
             .map_err(Error::from)
             .and_then(|installed_installations| {
                 debug!(

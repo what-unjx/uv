@@ -28,10 +28,7 @@
 
 @for %%i in ("{{ VIRTUAL_ENV_DIR }}") do @set "VIRTUAL_ENV=%%~fi"
 
-@set "VIRTUAL_ENV_PROMPT={{ VIRTUAL_PROMPT }}"
-@if NOT DEFINED VIRTUAL_ENV_PROMPT (
-    @for %%d in ("%VIRTUAL_ENV%") do @set "VIRTUAL_ENV_PROMPT=%%~nxd"
-)
+@for %%d in ("%VIRTUAL_ENV%") do @set "VIRTUAL_ENV_PROMPT=%%~nxd"
 
 @if defined _OLD_VIRTUAL_PROMPT (
     @set "PROMPT=%_OLD_VIRTUAL_PROMPT%"

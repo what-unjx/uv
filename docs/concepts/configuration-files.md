@@ -66,6 +66,22 @@ project-level settings appearing earlier in the merged array.
 Settings provided via environment variables take precedence over persistent configuration, and
 settings provided via the command line take precedence over both.
 
+### Required global setting: `home`
+
+uv requires a configured base storage directory to operate. This must be provided either via the
+`UV_HOME` environment variable or via the `home` setting in a `uv.toml` configuration file. The
+`home` setting is a `uv_toml_only` option, meaning it can only appear in user-level or system-level
+`uv.toml` files — not in `pyproject.toml` or project-level `uv.toml` files.
+
+```toml title="~/.config/uv/uv.toml"
+home = "/path/to/uv/home"
+```
+
+When configured, all uv storage — including the package cache, installed tools, managed Python
+installations, and credential store — is placed under this directory. See the
+[storage documentation](../reference/storage.md#unified-storage-root-uv_home) for the full directory
+layout and interaction with individual directory environment variables.
+
 uv accepts a `--no-config` command-line argument which, when provided, disables the discovery of any
 persistent configuration.
 

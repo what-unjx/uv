@@ -42,13 +42,19 @@ impl StateStore {
 
     /// Prefer, in order:
     ///
-    /// 1. The specific state directory specified by the user.
-    /// 2. The system-appropriate user-level data directory.
-    /// 3. A `.uv` directory in the current working directory.
+    /// 1. The `UV_HOME/data/` directory if `uv_home` is set.
+    /// 2. The specific state directory specified by the user.
+    /// 3. The system-appropriate user-level data directory.
+    /// 4. A `.uv` directory in the current working directory.
     ///
     /// Returns an absolute cache dir.
-    pub fn from_settings(state_dir: Option<PathBuf>) -> Result<Self, io::Error> {
-        if let Some(state_dir) = state_dir {
+    ///
+    /// [第1次试飞后修正]
+    /// 新增 uv_home 参数；当 UV_HOME 设置时，所有状态数据存储在 UV_HOME/data/ 下
+    pub fn from_settings(state_dir: Option<PathBuf>, uv_home: Option<PathBuf>) -> Result<Self, io::Error> {
+        if let Some(uv_home) = uv_home {
+            Ok(Self::from_path(uv_home.join("data")))
+        } else if let Some(state_dir) = state_dir {
             Ok(Self::from_path(state_dir))
         } else if let Some(data_dir) = uv_dirs::legacy_user_state_dir().filter(|dir| dir.exists()) {
             // If the user has an existing directory at (e.g.) `/Users/user/Library/Application Support/uv`,

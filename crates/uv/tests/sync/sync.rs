@@ -7609,10 +7609,10 @@ fn sync_environment_prompt() -> Result<()> {
      + iniconfig==2.0.0
     ");
 
-    // The `pyvenv.cfg` should contain the prompt matching the project name
+    // The `pyvenv.cfg` should not contain a prompt line since prompt is now managed by the activation script
     let pyvenv_cfg = context.read(".venv/pyvenv.cfg");
 
-    assert!(pyvenv_cfg.contains("prompt = my-project"));
+    assert!(!pyvenv_cfg.contains("prompt = "));
 
     Ok(())
 }

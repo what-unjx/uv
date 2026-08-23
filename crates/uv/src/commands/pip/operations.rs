@@ -37,6 +37,7 @@ use uv_preview::Preview;
 use uv_pypi_types::{Conflicts, ResolverMarkerEnvironment};
 use uv_python::managed::{ManagedPythonInstallation, PythonMinorVersionLink};
 use uv_python::{PythonEnvironment, PythonInstallation};
+// [第1次试飞后修正] 新增 EnvVars 导入
 use uv_requirements::{
     GroupsSpecification, LookaheadResolver, NamedRequirementsResolver, RequirementsSource,
     RequirementsSpecification, SourceTree, SourceTreeResolution, SourceTreeResolver,
@@ -45,6 +46,7 @@ use uv_resolver::{
     DependencyMode, Exclusions, FlatIndex, InMemoryIndex, Manifest, Options, Preference,
     Preferences, PythonRequirement, Resolver, ResolverEnvironment, ResolverOutput, UpgradePackages,
 };
+use uv_static::EnvVars;
 use uv_tool::InstalledTools;
 use uv_types::{BuildContext, HashStrategy, InFlight, InstalledPackagesProvider};
 use uv_warnings::warn_user;
@@ -1231,7 +1233,11 @@ pub(crate) fn report_target_environment(
     }
 
     // Do not report tool environments
-    if let Ok(tools) = InstalledTools::from_settings() {
+    // [第1次试飞后修正] 传入 uv_home
+    let uv_home = std::env::var_os(EnvVars::UV_HOME)
+        .filter(|s| !s.is_empty())
+        .map(PathBuf::from);
+    if let Ok(tools) = InstalledTools::from_settings(uv_home) {
         if target.starts_with(tools.root()) {
             debug!("{}", message);
             return Ok(());

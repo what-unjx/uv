@@ -38,11 +38,7 @@ setenv PATH "$VIRTUAL_ENV:q/{{ BIN_NAME }}:$PATH:q"
 
 
 
-if ('{{ VIRTUAL_PROMPT }}' != "") then
-    setenv VIRTUAL_ENV_PROMPT '{{ VIRTUAL_PROMPT }}'
-else
-    setenv VIRTUAL_ENV_PROMPT "$VIRTUAL_ENV:t:q"
-endif
+setenv VIRTUAL_ENV_PROMPT "$VIRTUAL_ENV:t:q"
 
 if ( $?VIRTUAL_ENV_DISABLE_PROMPT ) then
     if ( $VIRTUAL_ENV_DISABLE_PROMPT == "" ) then

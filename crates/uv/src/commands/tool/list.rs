@@ -1,4 +1,5 @@
 use std::fmt::Write;
+use std::path::PathBuf;
 
 use anyhow::Result;
 use futures::StreamExt;
@@ -15,7 +16,9 @@ use uv_distribution_types::{IndexCapabilities, RequiresPython};
 use uv_fs::Simplified;
 use uv_normalize::PackageName;
 use uv_python::LenientImplementationName;
+// [第1次试飞后修正] 新增 EnvVars 导入
 use uv_settings::{Combine, ResolverInstallerOptions};
+use uv_static::EnvVars;
 use uv_tool::InstalledTools;
 use uv_warnings::warn_user;
 
@@ -41,7 +44,11 @@ pub(crate) async fn list(
     cache: &Cache,
     printer: Printer,
 ) -> Result<ExitStatus> {
-    let installed_tools = InstalledTools::from_settings()?;
+    // [第1次试飞后修正] 传入 uv_home
+    let uv_home = std::env::var_os(EnvVars::UV_HOME)
+        .filter(|s| !s.is_empty())
+        .map(PathBuf::from);
+    let installed_tools = InstalledTools::from_settings(uv_home)?;
     let _lock = match installed_tools.lock().await {
         Ok(lock) => lock,
         Err(err)

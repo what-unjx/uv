@@ -17,6 +17,8 @@ use uv_python::managed::{
     ManagedPythonInstallations, PythonMinorVersionLink, python_executable_dir,
 };
 use uv_python::{PythonInstallationKey, PythonInstallationMinorVersionKey, PythonRequest};
+// [第1次试飞后修正] 新增 EnvVars 导入
+use uv_static::EnvVars;
 
 use crate::commands::python::install::format_executables;
 use crate::commands::python::{ChangeEvent, ChangeEventKind};
@@ -30,7 +32,11 @@ pub(crate) async fn uninstall(
     all: bool,
     printer: Printer,
 ) -> Result<ExitStatus> {
-    let installations = ManagedPythonInstallations::from_settings(install_dir)?.init()?;
+    // [第1次试飞后修正] 传入 uv_home
+    let uv_home = std::env::var_os(EnvVars::UV_HOME)
+        .filter(|s| !s.is_empty())
+        .map(PathBuf::from);
+    let installations = ManagedPythonInstallations::from_settings(install_dir, uv_home)?.init()?;
 
     let _lock = installations.lock().await?;
 
@@ -153,7 +159,11 @@ async fn do_uninstall(
     // Find and remove all relevant Python executables
     let mut uninstalled_executables: FxHashMap<PythonInstallationKey, FxHashSet<PathBuf>> =
         FxHashMap::default();
-    for executable in python_executable_dir()?
+    // [第1次试飞后修正] 传入 uv_home
+    let uv_home = std::env::var_os(EnvVars::UV_HOME)
+        .filter(|s| !s.is_empty())
+        .map(PathBuf::from);
+    for executable in python_executable_dir(uv_home)?
         .read_dir()
         .into_iter()
         .flatten()

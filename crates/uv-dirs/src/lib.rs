@@ -72,6 +72,21 @@ pub fn user_state_dir() -> Option<PathBuf> {
         .map(|dirs| dirs.data_dir().join("uv"))
 }
 
+/// Returns the path configured via the `UV_HOME` environment variable, if set.
+///
+/// When `UV_HOME` is set, it serves as the root for all uv storage directories:
+/// - `UV_HOME/cache/` for package cache
+/// - `UV_HOME/data/` for application state (tools, Python installations, credentials)
+/// - `UV_HOME/bin/` for executables
+///
+/// Returns `None` if the environment variable is not set.
+///
+/// [第1次试飞后修正]
+/// 新增：读取 UV_HOME 环境变量
+pub fn uv_home_dir() -> Option<PathBuf> {
+    std::env::var_os(EnvVars::UV_HOME).and_then(parse_path)
+}
+
 /// Returns the legacy state directory path.
 ///
 /// Uses `/Users/user/Library/Application Support/uv` on macOS, in contrast to the new preference

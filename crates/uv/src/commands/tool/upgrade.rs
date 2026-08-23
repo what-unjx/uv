@@ -1,9 +1,11 @@
+use std::collections::BTreeMap;
+use std::fmt::Write;
+use std::path::PathBuf;
+use std::str::FromStr;
+
 use anyhow::Result;
 use itertools::Itertools;
 use owo_colors::OwoColorize;
-use std::collections::BTreeMap;
-use std::fmt::Write;
-use std::str::FromStr;
 use tracing::{debug, trace};
 
 use uv_cache::Cache;
@@ -23,6 +25,8 @@ use uv_python::{
 };
 use uv_requirements::RequirementsSpecification;
 use uv_settings::{Combine, PythonInstallMirrors, ResolverInstallerOptions, ToolOptions};
+// [第1次试飞后修正] 新增 EnvVars 导入
+use uv_static::EnvVars;
 use uv_tool::{InstalledTools, Tool};
 use uv_types::{HashStrategy, SourceTreeEditablePolicy};
 use uv_workspace::WorkspaceCache;
@@ -59,7 +63,11 @@ pub(crate) async fn upgrade(
     printer: Printer,
     preview: Preview,
 ) -> Result<ExitStatus> {
-    let installed_tools = InstalledTools::from_settings()?.init()?;
+    // [第1次试飞后修正] 传入 uv_home
+    let uv_home = std::env::var_os(EnvVars::UV_HOME)
+        .filter(|s| !s.is_empty())
+        .map(PathBuf::from);
+    let installed_tools = InstalledTools::from_settings(uv_home)?.init()?;
     let _lock = installed_tools.lock().await?;
 
     // Collect the tools to upgrade, along with any constraints.

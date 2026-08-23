@@ -186,7 +186,7 @@ impl PyxDirectories {
         let root = if let Some(tool_dir) = std::env::var_os(EnvVars::UV_CREDENTIALS_DIR) {
             std::path::absolute(tool_dir)?
         } else {
-            StateStore::from_settings(None)?.bucket(StateBucket::Credentials)
+            StateStore::from_settings(None, None)?.bucket(StateBucket::Credentials)
         };
         let subdirectory = root.join(&digest);
         if subdirectory.exists() {

@@ -484,7 +484,6 @@ pub(crate) async fn run(
                 let environment = uv_virtualenv::create_venv(
                     temp_dir.path(),
                     interpreter,
-                    uv_virtualenv::Prompt::None,
                     false,
                     uv_virtualenv::OnExisting::Remove(
                         uv_virtualenv::RemovalReason::TemporaryEnvironment,
@@ -692,7 +691,6 @@ pub(crate) async fn run(
                 uv_virtualenv::create_venv(
                     temp_dir.path(),
                     interpreter,
-                    uv_virtualenv::Prompt::None,
                     false,
                     uv_virtualenv::OnExisting::Remove(
                         uv_virtualenv::RemovalReason::TemporaryEnvironment,
@@ -925,7 +923,6 @@ pub(crate) async fn run(
                 let venv = uv_virtualenv::create_venv(
                     temp_dir.path(),
                     interpreter,
-                    uv_virtualenv::Prompt::None,
                     false,
                     uv_virtualenv::OnExisting::Remove(
                         uv_virtualenv::RemovalReason::TemporaryEnvironment,
@@ -1051,7 +1048,6 @@ pub(crate) async fn run(
             uv_virtualenv::create_venv(
                 dir.path(),
                 base_interpreter.clone(),
-                uv_virtualenv::Prompt::None,
                 false,
                 uv_virtualenv::OnExisting::Remove(
                     uv_virtualenv::RemovalReason::TemporaryEnvironment,

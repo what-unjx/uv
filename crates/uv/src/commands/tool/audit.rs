@@ -1,5 +1,6 @@
 use std::fmt::Write as _;
 use std::io;
+use std::path::PathBuf;
 
 use anyhow::{Result, bail};
 use rustc_hash::FxHashSet;
@@ -15,6 +16,7 @@ use uv_preview::{Preview, PreviewFeature};
 use uv_redacted::DisplaySafeUrl;
 use uv_resolver::{Lock, LockParseError};
 use uv_settings::{Combine, ResolverInstallerOptions};
+use uv_static::EnvVars;
 use uv_tool::InstalledTools;
 use uv_warnings::warn_user;
 
@@ -62,7 +64,11 @@ pub(crate) async fn audit(
         );
     }
 
-    let installed_tools = InstalledTools::from_settings()?;
+    // [第1次试飞后修正] 传入 uv_home
+    let uv_home = std::env::var_os(EnvVars::UV_HOME)
+        .filter(|s| !s.is_empty())
+        .map(PathBuf::from);
+    let installed_tools = InstalledTools::from_settings(uv_home)?;
     let _lock = match installed_tools.lock().await {
         Ok(lock) => lock,
         Err(error)

@@ -120,12 +120,18 @@ impl ManagedPythonInstallations {
 
     /// Prefer, in order:
     ///
-    /// 1. The specific Python directory passed via the `install_dir` argument.
-    /// 2. The specific Python directory specified with the `UV_PYTHON_INSTALL_DIR` environment variable.
-    /// 3. A directory in the system-appropriate user-level data directory, e.g., `~/.local/uv/python`.
-    /// 4. A directory in the local data directory, e.g., `./.uv/python`.
-    pub fn from_settings(install_dir: Option<PathBuf>) -> Result<Self, Error> {
-        if let Some(install_dir) = install_dir {
+    /// 1. `UV_HOME/data/python/` if `uv_home` is set.
+    /// 2. The specific Python directory passed via the `install_dir` argument.
+    /// 3. The specific Python directory specified with the `UV_PYTHON_INSTALL_DIR` environment variable.
+    /// 4. A directory in the system-appropriate user-level data directory, e.g., `~/.local/uv/python`.
+    /// 5. A directory in the local data directory, e.g., `./.uv/python`.
+    ///
+    /// [第1次试飞后修正]
+    /// 新增 uv_home 参数；当 UV_HOME 设置时，Python 安装在 UV_HOME/data/python/ 下
+    pub fn from_settings(install_dir: Option<PathBuf>, uv_home: Option<PathBuf>) -> Result<Self, Error> {
+        if let Some(uv_home) = uv_home {
+            Ok(Self::from_path(uv_home.join("data").join("python")))
+        } else if let Some(install_dir) = install_dir {
             Ok(Self::from_path(install_dir))
         } else if let Some(install_dir) =
             std::env::var_os(EnvVars::UV_PYTHON_INSTALL_DIR).filter(|s| !s.is_empty())
@@ -133,7 +139,7 @@ impl ManagedPythonInstallations {
             Ok(Self::from_path(install_dir))
         } else {
             Ok(Self::from_path(
-                StateStore::from_settings(None)?.bucket(StateBucket::ManagedPython),
+                StateStore::from_settings(None, None)?.bucket(StateBucket::ManagedPython),
             ))
         }
     }
@@ -246,7 +252,7 @@ impl ManagedPythonInstallations {
     -> Result<impl DoubleEndedIterator<Item = ManagedPythonInstallation> + use<>, Error> {
         let platform = Platform::from_env()?;
 
-        let iter = Self::from_settings(None)?
+        let iter = Self::from_settings(None, None)?
             .find_all()?
             .filter(move |installation| {
                 if !platform.supports(installation.platform()) {
@@ -358,7 +364,7 @@ impl ManagedPythonInstallation {
     ///
     /// Returns `None` if the interpreter is not a managed installation.
     pub fn try_from_interpreter(interpreter: &Interpreter) -> Option<Self> {
-        let managed_root = ManagedPythonInstallations::from_settings(None).ok()?;
+        let managed_root = ManagedPythonInstallations::from_settings(None, None).ok()?;
         let root = managed_root.absolute_root().ok()?;
 
         // Canonicalize both paths to handle Windows path format differences
@@ -988,9 +994,16 @@ impl fmt::Display for ManagedPythonInstallation {
 }
 
 /// Find the directory to install Python executables into.
-pub fn python_executable_dir() -> Result<PathBuf, Error> {
-    uv_dirs::user_executable_directory(Some(EnvVars::UV_PYTHON_BIN_DIR))
-        .ok_or(Error::NoExecutableDirectory)
+///
+/// [第1次试飞后修正]
+/// 新增 uv_home 参数；当 UV_HOME 设置时，可执行文件存储在 UV_HOME/bin/ 下
+pub fn python_executable_dir(uv_home: Option<PathBuf>) -> Result<PathBuf, Error> {
+    if let Some(uv_home) = uv_home {
+        Ok(uv_home.join("bin"))
+    } else {
+        uv_dirs::user_executable_directory(Some(EnvVars::UV_PYTHON_BIN_DIR))
+            .ok_or(Error::NoExecutableDirectory)
+    }
 }
 
 #[cfg(test)]
@@ -1347,7 +1360,7 @@ mod tests {
             uv_static::EnvVars::UV_PYTHON_INSTALL_DIR,
             Some(temp_dir.path()),
             || {
-                let installations = ManagedPythonInstallations::from_settings(None).unwrap();
+                let installations = ManagedPythonInstallations::from_settings(None, None).unwrap();
 
                 // Version 3.1 should NOT match 3.10
                 let v3_1 = PythonVersion::from_str("3.1").unwrap();
@@ -1377,7 +1390,7 @@ mod tests {
                 (uv_static::EnvVars::PWD, Some(workdir.as_os_str())),
             ],
             || {
-                let installations = ManagedPythonInstallations::from_settings(None).unwrap();
+                let installations = ManagedPythonInstallations::from_settings(None, None).unwrap();
                 assert_eq!(
                     installations.absolute_root().unwrap(),
                     workdir.join(".python-installs")

@@ -448,7 +448,11 @@ async fn show_help(
         format!("{invocation_source} <command>").bold()
     )?;
 
-    let installed_tools = InstalledTools::from_settings()?;
+    // [第1次试飞后修正] 传入 uv_home
+    let uv_home = std::env::var_os(EnvVars::UV_HOME)
+        .filter(|s| !s.is_empty())
+        .map(PathBuf::from);
+    let installed_tools = InstalledTools::from_settings(uv_home)?;
     let _lock = match installed_tools.lock().await {
         Ok(lock) => lock,
         Err(err)
@@ -1018,7 +1022,11 @@ async fn get_or_create_environment(
 
     // Check if the tool is already installed in a compatible environment.
     if !isolated && !request.is_latest() {
-        let installed_tools = InstalledTools::from_settings()?.init()?;
+        // [第1次试飞后修正] 传入 uv_home
+        let uv_home = std::env::var_os(EnvVars::UV_HOME)
+            .filter(|s| !s.is_empty())
+            .map(PathBuf::from);
+        let installed_tools = InstalledTools::from_settings(uv_home)?.init()?;
         let _lock = installed_tools.lock().await?;
 
         if let ToolRequirement::Package { requirement, .. } = &from {

@@ -686,7 +686,7 @@ impl TestContext {
             EnvVars::UV_PYTHON_CACHE_DIR.into(),
             // Respect `UV_PYTHON_CACHE_DIR` if set, or use the default cache directory
             env::var_os(EnvVars::UV_PYTHON_CACHE_DIR).unwrap_or_else(|| {
-                uv_cache::Cache::from_settings(false, None)
+                uv_cache::Cache::from_settings(false, None, None)
                     .unwrap()
                     .bucket(CacheBucket::Python)
                     .into()
@@ -2154,7 +2154,7 @@ pub fn venv_bin_path(venv: impl AsRef<Path>) -> PathBuf {
 
 /// Get the path to the python interpreter for a specific python version.
 fn get_python(version: &PythonVersion) -> PathBuf {
-    ManagedPythonInstallations::from_settings(None)
+    ManagedPythonInstallations::from_settings(None, None)
         .map(|installed_pythons| {
             installed_pythons
                 .find_version(version)
