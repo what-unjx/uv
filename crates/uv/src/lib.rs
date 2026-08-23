@@ -321,6 +321,7 @@ async fn run_with_workspace_cache(
         cli.top_level.cache_args.no_cache,
         cli.top_level.cache_args.cache_dir.clone(),
         None,
+        None,
     )?;
     let filesystem = if let Some(config_file) = cli.top_level.config_file.as_ref() {
         if config_file
@@ -634,6 +635,7 @@ async fn run_with_workspace_cache(
     let cache = Cache::from_settings(
         cache_settings.no_cache,
         cache_settings.cache_dir,
+        cache_settings.config_cache_dir,
         cache_settings.uv_home.clone(),
     )?;
     // This check happens after the first (fallible) workspace discovery, which we need to resolve

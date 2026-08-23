@@ -441,7 +441,11 @@ impl NetworkSettings {
 #[derive(Debug, Clone)]
 pub(crate) struct CacheSettings {
     pub(crate) no_cache: bool,
+    /// The cache directory passed via the `--cache-dir` command-line flag.
     pub(crate) cache_dir: Option<PathBuf>,
+    /// The cache directory configured in `uv.toml` via `cache-dir`.
+    // [第2次修正] 与 CLI 值分离，避免配置文件的 cache-dir 越过 UV_HOME
+    pub(crate) config_cache_dir: Option<PathBuf>,
     // [第1次试飞后修正] 新增：统一存储根目录
     pub(crate) uv_home: Option<PathBuf>,
 }
@@ -459,9 +463,8 @@ impl CacheSettings {
                 || workspace
                     .and_then(|workspace| workspace.globals.no_cache)
                     .unwrap_or(false),
-            cache_dir: args
-                .cache_dir
-                .or_else(|| workspace.and_then(|workspace| workspace.globals.cache_dir.clone())),
+            cache_dir: args.cache_dir,
+            config_cache_dir: workspace.and_then(|workspace| workspace.globals.cache_dir.clone()),
             uv_home,
         }
     }

@@ -686,7 +686,7 @@ impl TestContext {
             EnvVars::UV_PYTHON_CACHE_DIR.into(),
             // Respect `UV_PYTHON_CACHE_DIR` if set, or use the default cache directory
             env::var_os(EnvVars::UV_PYTHON_CACHE_DIR).unwrap_or_else(|| {
-                uv_cache::Cache::from_settings(false, None, None)
+                uv_cache::Cache::from_settings(false, None, None, None)
                     .unwrap()
                     .bucket(CacheBucket::Python)
                     .into()

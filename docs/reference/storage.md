@@ -46,8 +46,9 @@ UV_HOME/
 **Interaction with individual directory settings.** When `UV_HOME` is set, all individual directory
 environment variables (`UV_CACHE_DIR`, `UV_TOOL_DIR`, `UV_TOOL_BIN_DIR`, `UV_PYTHON_INSTALL_DIR`,
 `UV_PYTHON_BIN_DIR`, `UV_PYTHON_CACHE_DIR`, `UV_CREDENTIALS_DIR`) are ignored in favor of the
-corresponding subdirectory under `UV_HOME`. Command-line flags such as `--cache-dir` and
-`--no-cache` still take effect as usual.
+corresponding subdirectory under `UV_HOME`. Command-line flags take precedence over `UV_HOME`: for
+the cache, the resolution order is `--no-cache` (use a temporary directory) > `--cache-dir` >
+`UV_HOME/cache/` > `UV_CACHE_DIR` > the `cache-dir` setting in `uv.toml` > the platform default.
 
 **Design rationale.** This approach mirrors the convention used by Rust's `cargo` toolchain
 (`~/.cargo/` containing `bin/`, `registry/`, and `git/`) and provides several benefits:

@@ -6291,6 +6291,7 @@ dependencies = [
  "rustc-hash",
  "same-file",
  "serde",
+ "temp-env",
  "tempfile",
  "thiserror",
  "tracing",

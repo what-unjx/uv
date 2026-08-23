@@ -36,7 +36,6 @@ class _VirtualEnvActivator:
 
         self.env = __xonsh__.env
         self.embedded_virtual_env = dirname(dirname(realpath(__file__)))
-        self.embedded_virtual_prompt = {{ VIRTUAL_PROMPT }}
         self.embedded_bin_name = {{ BIN_NAME }}
         self.managed_vars = ("PATH", "PYTHONHOME")
 
@@ -68,7 +67,7 @@ class _VirtualEnvActivator:
         self.deactivate(["nondestructive"]) # wipe any stale state from a prior activation
 
         $VIRTUAL_ENV = self.embedded_virtual_env
-        $VIRTUAL_ENV_PROMPT = self.embedded_virtual_prompt or basename($VIRTUAL_ENV)
+        $VIRTUAL_ENV_PROMPT = basename($VIRTUAL_ENV)
 
         self._override("PATH", [join($VIRTUAL_ENV, self.embedded_bin_name), *$PATH])
         self._drop("PYTHONHOME")

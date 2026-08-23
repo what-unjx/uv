@@ -1,326 +1,137 @@
-# uv
-
-<a href="https://pypi.python.org/pypi/uv"><img src="https://img.shields.io/pypi/v/uv.svg" alt="Latest PyPI version" /></a>
-<a href="https://pypi.python.org/pypi/uv"><img src="https://img.shields.io/pypi/pyversions/uv.svg" alt="Supported Python versions" /></a>
-<a href="https://discord.gg/astral-sh"><img src="https://img.shields.io/badge/Discord-%235865F2.svg?logo=discord&logoColor=white" alt="Discord" /></a>
-
-An extremely fast Python package and project manager, written in Rust.
-
-<p align="center">
-  <picture align="center">
-    <source media="(prefers-color-scheme: dark)" srcset="https://github.com/astral-sh/uv/assets/1309177/03aa9163-1c79-4a87-a31d-7a9311ed9310">
-    <source media="(prefers-color-scheme: light)" srcset="https://github.com/astral-sh/uv/assets/1309177/629e59c0-9c6e-4013-9ad4-adb2bcf5080d">
-    <img alt="Shows a bar chart with benchmark results." src="https://github.com/astral-sh/uv/assets/1309177/629e59c0-9c6e-4013-9ad4-adb2bcf5080d">
-  </picture>
-</p>
-
-<p align="center">
-  <i>Installing <a href="https://trio.readthedocs.io/">Trio</a>'s dependencies with a warm cache.</i>
-</p>
-
-## Highlights
-
-- A single tool to replace `pip`, `pip-tools`, `pipx`, `poetry`, `pyenv`, `twine`, `virtualenv`, and
-  more.
-- [10-100x faster](https://github.com/astral-sh/uv/blob/main/BENCHMARKS.md) than `pip`.
-- Provides [comprehensive project management](#projects), with a
-  [universal lockfile](https://docs.astral.sh/uv/concepts/projects/layout#the-lockfile).
-- [Runs scripts](#scripts), with support for
-  [inline dependency metadata](https://docs.astral.sh/uv/guides/scripts#declaring-script-dependencies).
-- [Installs and manages](#python-versions) Python versions.
-- [Runs and installs](#tools) tools published as Python packages.
-- Includes a [pip-compatible interface](#the-pip-interface) for a performance boost with a familiar
-  CLI.
-- Supports Cargo-style [workspaces](https://docs.astral.sh/uv/concepts/projects/workspaces) for
-  scalable projects.
-- Disk-space efficient, with a [global cache](https://docs.astral.sh/uv/concepts/cache) for
-  dependency deduplication.
-- Installable without Rust or Python via `curl` or `pip`.
-- Supports macOS, Linux, and Windows.
-
-uv is backed by [Astral](https://astral.sh), the creators of
-[Ruff](https://github.com/astral-sh/ruff) and [ty](https://github.com/astral-sh/ty).
-
-## Installation
-
-Install uv with our standalone installers:
-
-```bash
-# On macOS and Linux.
-curl -LsSf https://astral.sh/uv/install.sh | sh
-```
-
-```bash
-# On Windows.
-powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | iex"
-```
-
-Or, from [PyPI](https://pypi.org/project/uv/):
-
-```bash
-# With pip.
-pip install uv
-```
-
-```bash
-# Or pipx.
-pipx install uv
-```
-
-If installed via the standalone installer, uv can update itself to the latest version:
-
-```bash
-uv self update
-```
-
-See the [installation documentation](https://docs.astral.sh/uv/getting-started/installation/) for
-details and alternative installation methods.
-
-## Documentation
-
-uv's documentation is available at [docs.astral.sh/uv](https://docs.astral.sh/uv).
-
-Additionally, the command line reference documentation can be viewed with `uv help`.
-
-## Features
-
-### Projects
-
-uv manages project dependencies and environments, with support for lockfiles, workspaces, and more,
-similar to `rye` or `poetry`:
-
-```console
-$ uv init example
-Initialized project `example` at `/home/user/example`
-
-$ cd example
-
-$ uv add ruff
-Creating virtual environment at: .venv
-Resolved 2 packages in 170ms
-   Built example @ file:///home/user/example
-Prepared 2 packages in 627ms
-Installed 2 packages in 1ms
- + example==0.1.0 (from file:///home/user/example)
- + ruff==0.5.0
-
-$ uv run ruff check
-All checks passed!
-
-$ uv lock
-Resolved 2 packages in 0.33ms
-
-$ uv sync
-Resolved 2 packages in 0.70ms
-Checked 1 package in 0.02ms
-```
-
-See the [project documentation](https://docs.astral.sh/uv/guides/projects/) to get started.
-
-uv also supports building and publishing projects, even if they're not managed with uv. See the
-[publish guide](https://docs.astral.sh/uv/guides/publish/) to learn more.
-
-### Scripts
-
-uv manages dependencies and environments for single-file scripts.
-
-Create a new script and add inline metadata declaring its dependencies:
-
-```console
-$ echo 'import requests; print(requests.get("https://astral.sh"))' > example.py
-
-$ uv add --script example.py requests
-Updated `example.py`
-```
-
-Then, run the script in an isolated virtual environment:
-
-```console
-$ uv run example.py
-Reading inline script metadata from: example.py
-Installed 5 packages in 12ms
-<Response [200]>
-```
-
-See the [scripts documentation](https://docs.astral.sh/uv/guides/scripts/) to get started.
-
-### Tools
-
-uv executes and installs command-line tools provided by Python packages, similar to `pipx`.
-
-Run a tool in an ephemeral environment using `uvx` (an alias for `uv tool run`):
-
-```console
-$ uvx pycowsay 'hello world!'
-Resolved 1 package in 167ms
-Installed 1 package in 9ms
- + pycowsay==0.0.0.2
-  """
-
-  ------------
-< hello world! >
-  ------------
-   \   ^__^
-    \  (oo)\_______
-       (__)\       )\/\
-           ||----w |
-           ||     ||
-```
-
-Install a tool with `uv tool install`:
-
-```console
-$ uv tool install ruff
-Resolved 1 package in 6ms
-Installed 1 package in 2ms
- + ruff==0.5.0
-Installed 1 executable: ruff
-
-$ ruff --version
-ruff 0.5.0
-```
-
-See the [tools documentation](https://docs.astral.sh/uv/guides/tools/) to get started.
-
-### Python versions
-
-uv installs Python and allows quickly switching between versions.
-
-Install multiple Python versions:
-
-```console
-$ uv python install 3.12 3.13 3.14
-Installed 3 versions in 972ms
- + cpython-3.12.12-macos-aarch64-none (python3.12)
- + cpython-3.13.9-macos-aarch64-none (python3.13)
- + cpython-3.14.0-macos-aarch64-none (python3.14)
-
-```
-
-Download Python versions as needed:
-
-```console
-$ uv venv --python 3.12.0
-Using Python 3.12.0
-Creating virtual environment at: .venv
-Activate with: source .venv/bin/activate
-
-$ uv run --python pypy@3.8 -- python --version
-Python 3.8.16 (a9dbdca6fc3286b0addd2240f11d97d8e8de187a, Dec 29 2022, 11:45:30)
-[PyPy 7.3.11 with GCC Apple LLVM 13.1.6 (clang-1316.0.21.2.5)] on darwin
-Type "help", "copyright", "credits" or "license" for more information.
->>>>
-```
-
-Use a specific Python version in the current directory:
-
-```console
-$ uv python pin 3.11
-Pinned `.python-version` to `3.11`
-```
-
-See the [Python installation documentation](https://docs.astral.sh/uv/guides/install-python/) to get
-started.
-
-### The pip interface
-
-uv provides a drop-in replacement for common `pip`, `pip-tools`, and `virtualenv` commands.
-
-uv extends their interfaces with advanced features, such as dependency version overrides,
-platform-independent resolutions, reproducible resolutions, alternative resolution strategies, and
-more.
-
-Migrate to uv without changing your existing workflows — and experience a 10-100x speedup — with the
-`uv pip` interface.
-
-Compile requirements into a platform-independent requirements file:
-
-```console
-$ uv pip compile requirements.in \
-   --universal \
-   --output-file requirements.txt
-Resolved 43 packages in 12ms
-```
-
-Create a virtual environment:
-
-```console
-$ uv venv
-Using Python 3.12.3
-Creating virtual environment at: .venv
-Activate with: source .venv/bin/activate
-```
-
-Install the locked requirements:
-
-```console
-$ uv pip sync requirements.txt
-Resolved 43 packages in 11ms
-Installed 43 packages in 208ms
- + babel==2.15.0
- + black==24.4.2
- + certifi==2024.7.4
- ...
-```
-
-See the [pip interface documentation](https://docs.astral.sh/uv/pip/index/) to get started.
-
-## Contributing
-
-We are passionate about supporting contributors of all levels of experience and would love to see
-you get involved in the project. See the
-[contributing guide](https://github.com/astral-sh/uv?tab=contributing-ov-file#contributing) to get
-started.
-
-## FAQ
-
-#### How do you pronounce uv?
-
-It's pronounced as "you - vee" ([`/juː viː/`](https://en.wikipedia.org/wiki/Help:IPA/English#Key))
-
-#### How should I stylize uv?
-
-Just "uv", please. See the [style guide](./STYLE.md#styling-uv) for details.
-
-#### What platforms does uv support?
-
-See uv's [platform support](https://docs.astral.sh/uv/reference/platforms/) document.
-
-#### Is uv ready for production?
-
-Yes, uv is stable and widely used in production. See uv's
-[versioning policy](https://docs.astral.sh/uv/reference/versioning/) document for details.
-
-## Acknowledgements
-
-uv's dependency resolver uses [PubGrub](https://github.com/pubgrub-rs/pubgrub) under the hood. We're
-grateful to the PubGrub maintainers, especially [Jacob Finkelman](https://github.com/Eh2406), for
-their support.
-
-uv's Git implementation is based on [Cargo](https://github.com/rust-lang/cargo).
-
-Some of uv's optimizations are inspired by the great work we've seen in [pnpm](https://pnpm.io/),
-[Orogene](https://github.com/orogene/orogene), and [Bun](https://github.com/oven-sh/bun). We've also
-learned a lot from Nathaniel J. Smith's [Posy](https://github.com/njsmith/posy) and adapted its
-[trampoline](https://github.com/njsmith/posy/tree/main/src/trampolines/windows-trampolines/posy-trampoline)
-for Windows support.
-
-## License
-
-uv is licensed under either of
-
-- Apache License, Version 2.0, ([LICENSE-APACHE](LICENSE-APACHE) or
-  <https://www.apache.org/licenses/LICENSE-2.0>)
-- MIT license ([LICENSE-MIT](LICENSE-MIT) or <https://opensource.org/licenses/MIT>)
-
-at your option.
-
-Unless you explicitly state otherwise, any contribution intentionally submitted for inclusion in uv
-by you, as defined in the Apache-2.0 license, shall be dually licensed as above, without any
-additional terms or conditions.
-
 <div align="center">
-  <a target="_blank" href="https://astral.sh" style="background:none">
-    <img src="https://raw.githubusercontent.com/astral-sh/uv/main/assets/svg/Astral.svg" alt="Made by Astral">
-  </a>
+
+# uv · unjx fork
+
+[![Release](https://img.shields.io/github/v/release/what-unjx/uv?sort=semver)](https://github.com/what-unjx/uv/releases)
+[![Based on](https://img.shields.io/badge/based%20on%20astral%2Fuv-0.12.5-blue)](https://github.com/astral-sh/uv)
+[![License: MIT OR Apache-2.0](https://img.shields.io/badge/license-MIT%20OR%20Apache--2.0-blue)](./LICENSE)
+
+**一个 `UV_HOME` 目录管理 uv 的一切 —— cargo 风格的统一存储根目录**
+
+*English: A personal fork of [astral-sh/uv](https://github.com/astral-sh/uv) that consolidates all of
+uv's scattered storage directories into a single, cargo-style `UV_HOME` root.*
+
 </div>
+
+---
+
+## 为什么 fork
+
+官方 uv 极快、极好用,但它的数据存放相当分散:缓存、工具、托管 Python、凭据、可执行文件
+分散在操作系统各个角落(Windows 下分属 `%LOCALAPPDATA%`、`%APPDATA%`、`%USERPROFILE%` 等多个不同目录),
+备份、迁移、清理都要翻好几个地方。
+
+本 fork 借鉴 Rust 工具链 `~/.cargo` 的设计,引入 **`UV_HOME` 统一存储根目录**:
+所有 uv 数据收敛到一个自包含的目录树下,配置、备份、迁移、PATH 设置全部化繁为简。
+
+> 本 fork 长期通过 rebase 跟随官方 main,持续吸收上游全部更新与修复。
+
+## 特色功能
+
+### 1️⃣ `UV_HOME` 统一存储根目录(核心)
+
+**必选配置**:未设置 `UV_HOME` 时 uv 会拒绝运行,并给出明确的设置指引。
+
+**配置方式**(二选一,环境变量优先):
+
+```bash
+# 方式一:环境变量
+export UV_HOME=~/.uv          # macOS / Linux
+setx UV_HOME D:\uv            # Windows(永久)
+```
+
+```toml
+# 方式二:用户级 uv.toml
+# Windows: %APPDATA%\uv\uv.toml   Unix: ~/.config/uv/uv.toml
+home = "D:/uv"
+```
+
+**目录布局** —— 一个根目录,接管一切:
+
+```
+UV_HOME/
+├── cache/                      # 包缓存                        (≈ UV_CACHE_DIR)
+│   └── python/                 # Python 下载缓存               (≈ UV_PYTHON_CACHE_DIR)
+├── data/                       # 持久状态
+│   ├── tools/                  # uv tool 安装的工具            (≈ UV_TOOL_DIR)
+│   ├── python/                 # uv python 托管安装            (≈ UV_PYTHON_INSTALL_DIR)
+│   └── credentials/            # 凭据存储                      (≈ UV_CREDENTIALS_DIR)
+└── bin/                        # 可执行文件(tools + python)   (≈ UV_TOOL_BIN_DIR / UV_PYTHON_BIN_DIR)
+```
+
+**行为规则**:
+
+- 设置 `UV_HOME` 后,上表中所有独立目录环境变量(`UV_CACHE_DIR`、`UV_TOOL_DIR` 等)即被忽略,
+  统一使用 `UV_HOME` 下的对应子目录;命令行参数则优先于 `UV_HOME`——缓存目录的解析顺序为
+  `--no-cache` > `--cache-dir` > `UV_HOME/cache` > `UV_CACHE_DIR` > uv.toml 的 `cache-dir` > 系统默认;
+- `uv python update-shell` / `uv tool update-shell` 会自动把 `UV_HOME/bin` 写入 shell 配置。
+
+**收益**:
+
+| 场景 | 官方 uv | 本 fork |
+| --- | --- | --- |
+| 备份 / 迁移 | 需逐个找出散落各处的目录 | 复制 `UV_HOME` 一个目录即可 |
+| 彻底卸载残留 | 手动清理多个系统目录 | 删除 `UV_HOME` 即可 |
+| PATH 配置 | 工具、Python 各一条路径 | 只需 `UV_HOME/bin` 一条 |
+| 存储位置配置 | 最多 7 个环境变量 | 1 个 `UV_HOME` |
+
+### 2️⃣ 精简虚拟环境(破坏性变更)
+
+- 移除 `uv venv --prompt` 与整个 venv prompt 机制,激活脚本更干净,
+  `pyvenv.cfg` 不再写入 `prompt` 字段;
+- `uv venv` 的目标路径从位置参数改为显式参数:`uv venv project` → `uv venv --path project`。
+
+## 安装(Windows)
+
+从 [Releases](https://github.com/what-unjx/uv/releases) 下载 `uv.exe`,然后:
+
+```powershell
+# 1. 放到 UV_HOME\bin 下(推荐,或任意 PATH 目录)
+mkdir D:\uv\bin
+move .\uv.exe D:\uv\bin\
+
+# 2. 设置统一存储根目录并写入 PATH
+setx UV_HOME D:\uv
+setx PATH "$env:PATH;D:\uv\bin"
+```
+
+重开终端后即可使用,所有数据都会收敛在 `D:\uv` 下。
+
+### 快速上手
+
+```bash
+$ uv venv                        # 未设置 UV_HOME 时会得到清晰的报错指引
+$ export UV_HOME=~/.uv
+$ uv venv                        # 创建虚拟环境(项目本地,不受 UV_HOME 影响)
+$ uv pip install requests        # 缓存写入 ~/.uv/cache/
+$ uv python install 3.13         # 安装到 ~/.uv/data/python/,解释器链接进 ~/.uv/bin/
+$ uv tool install ruff           # 安装到 ~/.uv/data/tools/,可执行文件进 ~/.uv/bin/
+$ uv python dir                  # 显示 ~/.uv/data/python
+$ uv tool dir                    # 显示 ~/.uv/data/tools
+$ uv cache dir                   # 显示 ~/.uv/cache
+```
+
+## 与官方 uv 的差异一览
+
+| 方面 | 官方 uv | 本 fork |
+| --- | --- | --- |
+| 存储布局 | 分散在系统各标准目录 | 统一收敛于 `UV_HOME` |
+| 未配置时 | 使用各平台默认目录 | **报错退出**,要求显式配置 |
+| 目录类环境变量 | 各自生效 | 设置 `UV_HOME` 后被忽略 |
+| `uv venv --prompt` | 支持 | 已移除 |
+| `uv venv <path>`(位置参数) | 支持 | 改为 `uv venv --path <path>` |
+| 其余全部功能 | — | 与官方一致(rebase 跟随 upstream) |
+
+详细语义见仓库内文档:[`docs/reference/storage.md`](./docs/reference/storage.md)
+与 [`docs/concepts/configuration-files.md`](./docs/concepts/configuration-files.md)。
+
+## 与上游同步
+
+本 fork 以单提交形式维护全部定制(见 `local-mods` 分支最新提交),通过
+`git fetch upstream && git rebase upstream/main` 持续跟随官方 main,冲突极少且可复现解决。
+
+## 致谢
+
+本 fork 基于 [astral-sh/uv](https://github.com/astral-sh/uv) —— 由 [Astral](https://astral.sh)
+打造的极快 Python 包与项目管理器。全部上游功劳归 Astral 与 uv 社区;本仓库仅保留个人定制,
+许可证(MIT OR Apache-2.0)与上游一致。
