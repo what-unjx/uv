@@ -4,23 +4,19 @@ use std::path::Path;
 use anyhow::{Result, bail};
 use owo_colors::OwoColorize;
 use tracing::debug;
-use uv_python::downloads::ManagedPythonDownloadList;
 
 use uv_cache::Cache;
 use uv_client::BaseClientBuilder;
 use uv_configuration::DependencyGroupsWithDefaults;
 use uv_fs::Simplified;
 use uv_python::{
-    EnvironmentPreference, PYTHON_VERSION_FILENAME, PythonDownloads, PythonInstallation,
-    PythonPreference, PythonRequest, PythonVersionFile, VersionFileDiscoveryOptions,
+    EnvironmentPreference, PYTHON_VERSION_FILENAME, PythonInstallation, PythonPreference,
+    PythonRequest, PythonVersionFile, VersionFileDiscoveryOptions,
 };
-use uv_settings::PythonInstallMirrors;
 use uv_warnings::warn_user_once;
 use uv_workspace::{DiscoveryOptions, VirtualProject, WorkspaceCache};
 
-use crate::commands::{
-    ExitStatus, project::find_requires_python, reporters::PythonDownloadReporter,
-};
+use crate::commands::{ExitStatus, project::find_requires_python};
 use crate::printer::Printer;
 
 /// Pin to a specific Python version.
@@ -30,11 +26,9 @@ pub(crate) async fn pin(
     request: Option<String>,
     resolved: bool,
     python_preference: PythonPreference,
-    python_downloads: PythonDownloads,
     no_project: bool,
     global: bool,
     rm: bool,
-    install_mirrors: PythonInstallMirrors,
     client_builder: BaseClientBuilder<'_>,
     cache: &Cache,
     workspace_cache: &WorkspaceCache,
@@ -97,29 +91,14 @@ pub(crate) async fn pin(
         // Display the current pinned Python version
         if let Some(file) = version_file? {
             let mut pins = file.versions().peekable();
-            let download_list = if virtual_project.is_some() && pins.peek().is_some() {
-                Some(
-                    ManagedPythonDownloadList::new(
-                        &client_builder,
-                        cache,
-                        install_mirrors.python_downloads_json_url.as_deref(),
-                    )
-                    .await?,
-                )
-            } else {
-                None
-            };
 
             for pin in pins {
                 writeln!(printer.stdout(), "{}", pin.to_canonical_string())?;
-                if let Some(virtual_project) = &virtual_project
-                    && let Some(download_list) = &download_list
-                {
+                if let Some(virtual_project) = &virtual_project {
                     warn_if_existing_pin_incompatible_with_project(
                         pin,
                         virtual_project,
                         python_preference,
-                        download_list,
                         cache,
                     );
                 }
@@ -134,25 +113,15 @@ pub(crate) async fn pin(
         bail!("Requests for arbitrary names (e.g., `{name}`) are not supported in version files");
     }
 
-    let reporter = PythonDownloadReporter::single(printer);
-
-    let python = match PythonInstallation::find_or_download(
+    let python = match PythonInstallation::find_existing(
         Some(&request),
         EnvironmentPreference::OnlySystem,
         python_preference,
-        python_downloads,
-        &client_builder,
         cache,
-        Some(&reporter),
-        install_mirrors.python_install_mirror.as_deref(),
-        install_mirrors.pypy_install_mirror.as_deref(),
-        install_mirrors.python_downloads_json_url.as_deref(),
-    )
-    .await
-    {
+    ) {
         Ok(python) => Some(python),
         // If no matching Python version is found, don't fail unless `resolved` was requested
-        Err(uv_python::Error::MissingPython(err, ..)) if !resolved => {
+        Err(uv_python::Error::MissingPython(err)) if !resolved => {
             // N.B. We omit the hint and just show the inner error message
             warn_user_once!("{err}");
             None
@@ -259,7 +228,6 @@ fn warn_if_existing_pin_incompatible_with_project(
     pin: &PythonRequest,
     virtual_project: &VirtualProject,
     python_preference: PythonPreference,
-    downloads_list: &ManagedPythonDownloadList,
     cache: &Cache,
 ) {
     // Check if the pinned version is compatible with the project.
@@ -280,11 +248,10 @@ fn warn_if_existing_pin_incompatible_with_project(
 
     // If the request itself didn't prove an incompatibility, resolve the pin into an
     // interpreter to check the concrete version on the current system.
-    match PythonInstallation::find(
+    match PythonInstallation::find_existing(
         pin,
         EnvironmentPreference::OnlySystem,
         python_preference,
-        downloads_list,
         cache,
     ) {
         Ok(python) => {

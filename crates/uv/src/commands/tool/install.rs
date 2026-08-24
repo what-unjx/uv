@@ -25,7 +25,7 @@ use uv_pep508::MarkerTree;
 use uv_preview::{Preview, PreviewFeature};
 // [第1次试飞后修正] 新增 EnvVars 导入
 use uv_python::{
-    ConfigDiscovery, EnvironmentPreference, Interpreter, PythonDownloads, PythonEnvironment,
+    ConfigDiscovery, EnvironmentPreference, Interpreter, PythonEnvironment,
     PythonInstallation, PythonPreference, PythonRequest,
 };
 use uv_requirements::{RequirementsSource, RequirementsSpecification};
@@ -52,7 +52,7 @@ use crate::commands::tool::common::{
     tool_environment_spec,
 };
 use crate::commands::tool::{Target, ToolRequest};
-use crate::commands::{diagnostics, reporters::PythonDownloadReporter};
+use crate::commands::diagnostics;
 use crate::printer::Printer;
 use crate::settings::{ResolverInstallerSettings, ResolverSettings};
 
@@ -70,13 +70,11 @@ pub(crate) async fn install(
     lfs: GitLfsSetting,
     python: Option<String>,
     python_platform: Option<TargetTriple>,
-    install_mirrors: PythonInstallMirrors,
     force: bool,
     options: ResolverInstallerOptions,
     settings: ResolverInstallerSettings,
     client_builder: BaseClientBuilder<'_>,
     python_preference: PythonPreference,
-    python_downloads: PythonDownloads,
     installer_metadata: bool,
     concurrency: Concurrency,
     config_discovery: ConfigDiscovery,
@@ -92,8 +90,6 @@ pub(crate) async fn install(
             "The `--torch-backend` option is experimental and may change without warning."
         );
     }
-
-    let reporter = PythonDownloadReporter::single(printer);
 
     // Initialize any shared state.
     let state = PlatformState::default();
@@ -138,19 +134,7 @@ pub(crate) async fn install(
 
     // Pre-emptively identify a Python interpreter. We need an interpreter to resolve any unnamed
     // requirements, even if we end up using a different interpreter for the tool install itself.
-    let interpreter = PythonInstallation::find_or_download(
-        python_request.as_ref(),
-        EnvironmentPreference::OnlySystem,
-        python_preference,
-        python_downloads,
-        &client_builder,
-        &cache,
-        Some(&reporter),
-        install_mirrors.python_install_mirror.as_deref(),
-        install_mirrors.pypy_install_mirror.as_deref(),
-        install_mirrors.python_downloads_json_url.as_deref(),
-    )
-    .await?
+    let interpreter = PythonInstallation::find(python_request.as_ref().unwrap_or(&PythonRequest::Default), EnvironmentPreference::OnlySystem, python_preference, &cache)
     .into_interpreter();
 
     // If the user passed, e.g., `ruff@latest`, refresh the cache.
@@ -952,10 +936,7 @@ pub(crate) async fn install(
                             python_request.as_ref(),
                             &err,
                             &client_builder,
-                            &reporter,
-                            &install_mirrors,
                             python_preference,
-                            python_downloads,
                             &cache,
                         )
                         .await

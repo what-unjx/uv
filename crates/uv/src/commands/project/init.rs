@@ -21,7 +21,7 @@ use uv_git::GIT;
 use uv_normalize::PackageName;
 use uv_pep440::Version;
 use uv_python::{
-    ConfigDiscovery, EnvironmentPreference, PythonDownloads, PythonEnvironment, PythonInstallation,
+    ConfigDiscovery, EnvironmentPreference, PythonEnvironment, PythonInstallation,
     PythonPreference, PythonRequest, PythonVariant, PythonVersionFile, VersionFileDiscoveryOptions,
     VersionRequest,
 };
@@ -36,7 +36,6 @@ use uv_workspace::{
 
 use crate::commands::ExitStatus;
 use crate::commands::project::{find_requires_python, init_script_python_requirement};
-use crate::commands::reporters::PythonDownloadReporter;
 use crate::printer::Printer;
 
 /// Add one or more packages to the project requirements.
@@ -55,11 +54,9 @@ pub(crate) async fn init(
     author_from: Option<AuthorFrom>,
     pin_python: bool,
     python: Option<String>,
-    install_mirrors: PythonInstallMirrors,
     no_workspace: bool,
     client_builder: &BaseClientBuilder<'_>,
     python_preference: PythonPreference,
-    python_downloads: PythonDownloads,
     config_discovery: ConfigDiscovery,
     cache: &Cache,
     printer: Printer,
@@ -74,10 +71,8 @@ pub(crate) async fn init(
                 path,
                 bare,
                 python,
-                install_mirrors,
                 client_builder,
                 python_preference,
-                python_downloads,
                 cache,
                 printer,
                 no_workspace,
@@ -152,11 +147,9 @@ pub(crate) async fn init(
                 author_from,
                 pin_python,
                 python,
-                install_mirrors,
                 no_workspace,
                 client_builder,
                 python_preference,
-                python_downloads,
                 config_discovery,
                 cache,
                 printer,
@@ -199,10 +192,8 @@ async fn init_script(
     script_path: &Path,
     bare: bool,
     python: Option<String>,
-    install_mirrors: PythonInstallMirrors,
     client_builder: &BaseClientBuilder<'_>,
     python_preference: PythonPreference,
-    python_downloads: PythonDownloads,
     cache: &Cache,
     printer: Printer,
     no_workspace: bool,
@@ -220,7 +211,6 @@ async fn init_script(
     if author_from.is_some() {
         warn_user_once!("`--author-from` is a no-op for Python scripts, which are standalone");
     }
-    let reporter = PythonDownloadReporter::single(printer);
 
     // If the file already exists, read its content.
     let content = match fs_err::tokio::read(script_path).await {
@@ -249,15 +239,12 @@ async fn init_script(
 
     let requires_python = init_script_python_requirement(
         python.as_deref(),
-        &install_mirrors,
         script_path.parent().unwrap_or(&CWD),
         !pin_python,
         python_preference,
-        python_downloads,
         config_discovery,
         client_builder,
         cache,
-        &reporter,
     )
     .await?;
 
@@ -285,11 +272,9 @@ async fn init_project(
     author_from: Option<AuthorFrom>,
     pin_python: bool,
     python: Option<String>,
-    install_mirrors: PythonInstallMirrors,
     no_workspace: bool,
     client_builder: &BaseClientBuilder<'_>,
     python_preference: PythonPreference,
-    python_downloads: PythonDownloads,
     config_discovery: ConfigDiscovery,
     cache: &Cache,
     printer: Printer,
@@ -356,8 +341,6 @@ async fn init_project(
         }
     };
 
-    let reporter = PythonDownloadReporter::single(printer);
-
     // First, determine if there is an request for Python
     let python_request = if let Some(request) = python {
         // (1) Explicit request from user
@@ -384,13 +367,10 @@ async fn init_project(
     let (requires_python, python_pin) = determine_requires_python(
         path,
         pin_python,
-        install_mirrors,
         client_builder,
         python_preference,
-        python_downloads,
         cache,
         workspace.as_deref(),
-        &reporter,
         python_request,
     )
     .await?;
@@ -488,10 +468,8 @@ async fn init_project(
 async fn determine_requires_python(
     path: &Path,
     pin_python: bool,
-    install_mirrors: PythonInstallMirrors,
     client_builder: &BaseClientBuilder<'_>,
     python_preference: PythonPreference,
-    python_downloads: PythonDownloads,
     cache: &Cache,
     workspace: Option<&Workspace>,
     reporter: &PythonDownloadReporter,
@@ -545,19 +523,7 @@ async fn determine_requires_python(
                 let requires_python = RequiresPython::from_specifiers(specifiers.clone());
 
                 let python_pin = if pin_python {
-                    let interpreter = PythonInstallation::find_or_download(
-                        Some(python_request),
-                        EnvironmentPreference::OnlySystem,
-                        python_preference,
-                        python_downloads,
-                        client_builder,
-                        cache,
-                        Some(reporter),
-                        install_mirrors.python_install_mirror.as_deref(),
-                        install_mirrors.pypy_install_mirror.as_deref(),
-                        install_mirrors.python_downloads_json_url.as_deref(),
-                    )
-                    .await?
+                    let interpreter = PythonInstallation::find(python_request, EnvironmentPreference::OnlySystem, python_preference, cache)
                     .into_interpreter();
 
                     Some(PythonRequest::Version(VersionRequest::MajorMinor(
@@ -572,19 +538,7 @@ async fn determine_requires_python(
                 (requires_python, python_pin)
             }
             python_request => {
-                let interpreter = PythonInstallation::find_or_download(
-                    Some(python_request),
-                    EnvironmentPreference::OnlySystem,
-                    python_preference,
-                    python_downloads,
-                    client_builder,
-                    cache,
-                    Some(reporter),
-                    install_mirrors.python_install_mirror.as_deref(),
-                    install_mirrors.pypy_install_mirror.as_deref(),
-                    install_mirrors.python_downloads_json_url.as_deref(),
-                )
-                .await?
+                let interpreter = PythonInstallation::find(python_request, EnvironmentPreference::OnlySystem, python_preference, cache)
                 .into_interpreter();
 
                 let requires_python =
@@ -642,19 +596,7 @@ async fn determine_requires_python(
 
         // Pin to the minor version.
         let python_pin = if pin_python {
-            let interpreter = PythonInstallation::find_or_download(
-                Some(&python_request),
-                EnvironmentPreference::OnlySystem,
-                python_preference,
-                python_downloads,
-                client_builder,
-                cache,
-                Some(reporter),
-                install_mirrors.python_install_mirror.as_deref(),
-                install_mirrors.pypy_install_mirror.as_deref(),
-                install_mirrors.python_downloads_json_url.as_deref(),
-            )
-            .await?
+            let interpreter = PythonInstallation::find(&python_request, EnvironmentPreference::OnlySystem, python_preference, cache)
             .into_interpreter();
 
             Some(PythonRequest::Version(VersionRequest::MajorMinor(
@@ -671,19 +613,7 @@ async fn determine_requires_python(
         Ok((requires_python, python_pin))
     } else {
         // (4) Default to the system Python
-        let interpreter = PythonInstallation::find_or_download(
-            None,
-            EnvironmentPreference::OnlySystem,
-            python_preference,
-            python_downloads,
-            client_builder,
-            cache,
-            Some(reporter),
-            install_mirrors.python_install_mirror.as_deref(),
-            install_mirrors.pypy_install_mirror.as_deref(),
-            install_mirrors.python_downloads_json_url.as_deref(),
-        )
-        .await?
+        let interpreter = PythonInstallation::find(&PythonRequest::Default, EnvironmentPreference::OnlySystem, python_preference, cache)
         .into_interpreter();
 
         let requires_python =

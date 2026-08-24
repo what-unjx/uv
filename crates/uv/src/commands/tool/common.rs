@@ -36,7 +36,7 @@ use uv_pep440::{Version, VersionSpecifier, VersionSpecifiers};
 use uv_preview::Preview;
 use uv_pypi_types::Conflicts;
 use uv_python::{
-    ConfigDiscovery, EnvironmentPreference, Interpreter, PythonDownloads, PythonEnvironment,
+    ConfigDiscovery, EnvironmentPreference, Interpreter, PythonEnvironment,
     PythonInstallation, PythonPreference, PythonRequest, PythonVariant, PythonVersionFile,
     VersionFileDiscoveryOptions, VersionRequest,
 };
@@ -117,7 +117,6 @@ use crate::commands::project::{
     EnvironmentSpecification, PlatformState, PreferenceLocation, ProjectError, PythonRequestSource,
     lock::ValidatedLock,
 };
-use crate::commands::reporters::PythonDownloadReporter;
 use crate::printer::Printer;
 use crate::settings::ResolverSettings;
 
@@ -643,9 +642,7 @@ pub(crate) async fn refine_interpreter(
     err: &pip::operations::Error,
     client_builder: &BaseClientBuilder<'_>,
     reporter: &PythonDownloadReporter,
-    install_mirrors: &PythonInstallMirrors,
     python_preference: PythonPreference,
-    python_downloads: PythonDownloads,
     cache: &Cache,
 ) -> anyhow::Result<Option<Interpreter>, ProjectError> {
     let pip::operations::Error::Resolve(uv_resolver::ResolveError::NoSolution(no_solution_err)) =
@@ -699,19 +696,7 @@ pub(crate) async fn refine_interpreter(
 
     debug!("Refining interpreter with: {requires_python_request}");
 
-    let interpreter = PythonInstallation::find_or_download(
-        Some(&requires_python_request),
-        EnvironmentPreference::OnlySystem,
-        python_preference,
-        python_downloads,
-        client_builder,
-        cache,
-        Some(reporter),
-        install_mirrors.python_install_mirror.as_deref(),
-        install_mirrors.pypy_install_mirror.as_deref(),
-        install_mirrors.python_downloads_json_url.as_deref(),
-    )
-    .await?
+    let interpreter = PythonInstallation::find(&requires_python_request, EnvironmentPreference::OnlySystem, python_preference, cache)
     .into_interpreter();
 
     // If the user passed a `--python` request, and the refined interpreter is incompatible, we

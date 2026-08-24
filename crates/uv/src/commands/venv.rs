@@ -24,7 +24,7 @@ use uv_install_wheel::LinkMode;
 use uv_normalize::DefaultGroups;
 use uv_preview::Preview;
 use uv_python::{
-    ConfigDiscovery, EnvironmentPreference, PythonDownloads, PythonInstallation, PythonPreference,
+    ConfigDiscovery, EnvironmentPreference, PythonInstallation, PythonPreference,
     PythonRequest,
 };
 use uv_resolver::{ExcludeNewer, FlatIndex};
@@ -45,7 +45,6 @@ use crate::commands::project::{
     centralized_environments_enabled, is_centralized_environment_reference,
     lock_project_environment, update_project_environment_link, validate_project_requires_python,
 };
-use crate::commands::reporters::PythonDownloadReporter;
 use crate::printer::Printer;
 
 use super::project::default_dependency_groups;
@@ -70,9 +69,7 @@ pub(crate) async fn venv(
     project_dir: &Path,
     path: Option<PathBuf>,
     python_request: Option<PythonRequest>,
-    install_mirrors: PythonInstallMirrors,
     python_preference: PythonPreference,
-    python_downloads: PythonDownloads,
     link_mode: LinkMode,
     index_locations: &IndexLocations,
     index_strategy: IndexStrategy,
@@ -137,8 +134,6 @@ pub(crate) async fn venv(
         .filter(|(_, selection)| centralized_environments_enabled(selection, cache))
         .map(|(workspace, _)| *workspace);
 
-    let reporter = PythonDownloadReporter::single(printer);
-
     // If the default dependency-groups demand a higher requires-python
     // we should bias an empty venv to that to avoid churn.
     let default_groups = match &project {
@@ -161,19 +156,7 @@ pub(crate) async fn venv(
 
     // Locate the Python interpreter to use in the environment
     let interpreter = {
-        let python = PythonInstallation::find_or_download(
-            python_request.as_ref(),
-            EnvironmentPreference::OnlySystem,
-            python_preference,
-            python_downloads,
-            client_builder,
-            cache,
-            Some(&reporter),
-            install_mirrors.python_install_mirror.as_deref(),
-            install_mirrors.pypy_install_mirror.as_deref(),
-            install_mirrors.python_downloads_json_url.as_deref(),
-        )
-        .await?;
+        let python = PythonInstallation::find(python_request.as_ref().unwrap_or(&PythonRequest::Default), EnvironmentPreference::OnlySystem, python_preference, cache);
         report_interpreter(&python, false, printer)?;
         python.into_interpreter()
     };
@@ -270,15 +253,7 @@ pub(crate) async fn venv(
     };
 
     // Create the virtual environment.
-    let venv = uv_virtualenv::create_venv(
-        &path,
-        interpreter,
-        system_site_packages,
-        on_existing,
-        relocatable,
-        seed,
-        upgradeable,
-    )
+    let venv = uv_virtualenv::create_venv(&path, interpreter, system_site_packages, on_existing, relocatable, seed)
     .map_err(VenvError::Creation)?;
 
     // Install seed packages.

@@ -19,9 +19,6 @@ use uv_fs::{PythonExt, Simplified, cachedir};
 use uv_platform_tags::Os;
 use uv_preview::PreviewFeature;
 use uv_pypi_types::Scheme;
-use uv_python::managed::{
-    ManagedPythonInstallation, PythonExecutable, PythonMinorVersionLink, replace_link_to_executable,
-};
 use uv_python::{Interpreter, VirtualEnvironment};
 use uv_shell::escape_posix_for_single_quotes;
 use uv_version::version;
@@ -69,7 +66,6 @@ pub(crate) fn create(
     on_existing: OnExisting,
     relocatable: bool,
     seed: Seed,
-    upgradeable: bool,
 ) -> Result<VirtualEnvironment, Error> {
     // Determine the base Python executable; that is, the Python executable that should be
     // considered the "base" for the virtual environment.
@@ -203,35 +199,7 @@ pub(crate) fn create(
     // Create a `.gitignore` file to ignore all files in the venv.
     fs_err::write(location.join(".gitignore"), "*")?;
 
-    let mut using_minor_version_link = false;
-    let executable_target = if upgradeable {
-        if let Some(minor_version_link) =
-            ManagedPythonInstallation::try_from_interpreter(interpreter)
-                .and_then(|installation| PythonMinorVersionLink::from_installation(&installation))
-        {
-            if !minor_version_link.exists() {
-                base_python.clone()
-            } else {
-                let debug_symlink_term = if cfg!(windows) {
-                    "junction"
-                } else {
-                    "symlink directory"
-                };
-                debug!(
-                    "Using {} {} instead of base Python path: {}",
-                    debug_symlink_term,
-                    &minor_version_link.symlink_directory.display(),
-                    &base_python.display()
-                );
-                using_minor_version_link = true;
-                minor_version_link.symlink_executable.clone()
-            }
-        } else {
-            base_python.clone()
-        }
-    } else {
-        base_python.clone()
-    };
+    let executable_target = base_python.clone();
 
     // Per PEP 405, the Python `home` is the parent directory of the interpreter.
     // For standalone interpreters, this `home` value will include a
@@ -291,52 +259,16 @@ pub(crate) fn create(
         }
     }
 
-    // On Windows, we use trampolines that point to an executable target. For standalone
-    // interpreters, this target path includes a minor version junction to enable
-    // transparent upgrades.
+    // On Windows, we use trampolines that point to an executable target.
     if cfg!(windows) {
-        if using_minor_version_link {
-            let target = scripts.join(WindowsExecutable::Python.exe(interpreter));
-            replace_link_to_executable(
-                target.as_path(),
-                PythonExecutable::console(&executable_target),
-            )
-            .map_err(Error::Python)?;
-            let windowed_executable_name = WindowsExecutable::Pythonw.exe(interpreter);
-            let targetw = scripts.join(&windowed_executable_name);
-            let windowed_executable_target =
-                executable_target.with_file_name(windowed_executable_name);
-            replace_link_to_executable(
-                targetw.as_path(),
-                PythonExecutable::windowed(&windowed_executable_target),
-            )
-            .map_err(Error::Python)?;
-            if interpreter.gil_disabled() {
-                let targett = scripts.join(WindowsExecutable::PythonMajorMinort.exe(interpreter));
-                replace_link_to_executable(
-                    targett.as_path(),
-                    PythonExecutable::console(&executable_target),
-                )
-                .map_err(Error::Python)?;
-                let targetwt = scripts.join(WindowsExecutable::PythonwMajorMinort.exe(interpreter));
-                replace_link_to_executable(
-                    targetwt.as_path(),
-                    PythonExecutable::windowed(&windowed_executable_target),
-                )
-                .map_err(Error::Python)?;
-            }
-        } else if matches!(
+        if matches!(
             interpreter.platform().os(),
             Os::Pyodide { .. } | Os::PyEmscripten { .. }
         ) {
             // For PyEmscripten, link only `python.exe`.
             // This should not be copied as `python.exe` is a wrapper that launches Pyodide.
             let target = scripts.join(WindowsExecutable::Python.exe(interpreter));
-            replace_link_to_executable(
-                target.as_path(),
-                PythonExecutable::console(&executable_target),
-            )
-            .map_err(Error::Python)?;
+            uv_fs::replace_symlink(&executable_target, &target)?;
         } else {
             // Always copy `python.exe`.
             copy_launcher_windows(
@@ -536,11 +468,7 @@ pub(crate) fn create(
         ("uv".to_string(), version().to_string()),
         (
             "version_info".to_string(),
-            if using_minor_version_link {
-                interpreter.python_minor_version().to_string()
-            } else {
-                interpreter.markers().python_full_version().string.clone()
-            },
+            interpreter.markers().python_full_version().string.clone()
         ),
         (
             "include-system-site-packages".to_string(),

@@ -123,15 +123,6 @@ impl Direction {
     }
 }
 
-impl From<uv_python::downloads::Direction> for Direction {
-    fn from(dir: uv_python::downloads::Direction) -> Self {
-        match dir {
-            uv_python::downloads::Direction::Download => Self::Download,
-            uv_python::downloads::Direction::Extract => Self::Extract,
-        }
-    }
-}
-
 impl ProgressReporter {
     fn new(root: ProgressBar, multi_progress: MultiProgress, printer: Printer) -> Self {
         let mode = if env::var(EnvVars::JPY_SESSION_NAME).is_ok() {
@@ -650,45 +641,6 @@ impl uv_installer::InstallReporter for InstallReporter {
     }
 }
 
-#[derive(Debug)]
-pub(crate) struct PythonDownloadReporter {
-    reporter: ProgressReporter,
-}
-
-impl PythonDownloadReporter {
-    /// Initialize a [`PythonDownloadReporter`] for a single Python download.
-    pub(crate) fn single(printer: Printer) -> Self {
-        Self::new(printer, None)
-    }
-
-    /// Initialize a [`PythonDownloadReporter`] for multiple Python downloads.
-    pub(crate) fn new(printer: Printer, length: Option<u64>) -> Self {
-        let multi_progress = MultiProgress::with_draw_target(printer.target());
-        let root = multi_progress.add(ProgressBar::with_draw_target(length, printer.target()));
-        let reporter = ProgressReporter::new(root, multi_progress, printer);
-        Self { reporter }
-    }
-}
-
-impl uv_python::downloads::Reporter for PythonDownloadReporter {
-    fn on_request_start(
-        &self,
-        direction: uv_python::downloads::Direction,
-        name: &PythonInstallationKey,
-        size: Option<u64>,
-    ) -> usize {
-        self.reporter
-            .on_request_start(direction.into(), format!("{name} ({direction})"), size)
-    }
-
-    fn on_request_progress(&self, id: usize, inc: u64) {
-        self.reporter.on_request_progress(id, inc);
-    }
-
-    fn on_request_complete(&self, direction: uv_python::downloads::Direction, id: usize) {
-        self.reporter.on_request_complete(direction.into(), id);
-    }
-}
 
 #[derive(Debug)]
 pub(crate) struct PublishReporter {

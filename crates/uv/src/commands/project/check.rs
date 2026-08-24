@@ -15,7 +15,7 @@ use uv_fs::normalize_path;
 use uv_normalize::{DEV_DEPENDENCIES, DefaultExtras, PackageName};
 use uv_preview::{Preview, PreviewFeature};
 use uv_python::{
-    ConfigDiscovery, EnvironmentPreference, PythonDownloads, PythonEnvironment, PythonInstallation,
+    ConfigDiscovery, EnvironmentPreference, PythonEnvironment, PythonInstallation,
     PythonPreference, PythonRequest,
 };
 use uv_scripts::Pep723Script;
@@ -34,7 +34,6 @@ use crate::commands::project::{
     ProjectInterpreter, ScriptEnvironment, ScriptInterpreter, UniversalState, WorkspacePython,
     default_dependency_groups, validate_project_requires_python,
 };
-use crate::commands::reporters::PythonDownloadReporter;
 use crate::commands::{ExitStatus, diagnostics, project};
 use crate::printer::Printer;
 use crate::settings::{FrozenSource, LockCheck, ResolverInstallerSettings};
@@ -57,7 +56,6 @@ pub(crate) async fn check(
     extras: ExtrasSpecification,
     groups: DependencyGroups,
     python: Option<String>,
-    install_mirrors: PythonInstallMirrors,
     settings: ResolverInstallerSettings,
     ty_version: Option<String>,
     show_version: bool,
@@ -65,7 +63,6 @@ pub(crate) async fn check(
     script: Option<Pep723Script>,
     client_builder: BaseClientBuilder<'_>,
     python_preference: PythonPreference,
-    python_downloads: PythonDownloads,
     installer_metadata: bool,
     concurrency: Concurrency,
     cache: &Cache,
@@ -291,8 +288,6 @@ pub(crate) async fn check(
                 python.as_deref().map(PythonRequest::parse),
                 &client_builder,
                 python_preference,
-                python_downloads,
-                &install_mirrors,
                 false,
                 config_discovery,
                 Some(false),
@@ -315,21 +310,7 @@ pub(crate) async fn check(
                 config_discovery,
             )
             .await?;
-
-            let reporter = PythonDownloadReporter::single(printer);
-            let interpreter = PythonInstallation::find_or_download(
-                python_request.as_ref(),
-                EnvironmentPreference::Any,
-                python_preference,
-                python_downloads,
-                &client_builder,
-                cache,
-                Some(&reporter),
-                install_mirrors.python_install_mirror.as_deref(),
-                install_mirrors.pypy_install_mirror.as_deref(),
-                install_mirrors.python_downloads_json_url.as_deref(),
-            )
-            .await?
+            let interpreter = PythonInstallation::find(python_request.as_ref().unwrap_or(&PythonRequest::Default), EnvironmentPreference::Any, python_preference, cache)
             .into_interpreter();
 
             if let Some(requires_python) = requires_python.as_ref() {
@@ -345,15 +326,7 @@ pub(crate) async fn check(
         };
 
         temp_dir = cache.venv_dir()?;
-        Some(uv_virtualenv::create_venv(
-            temp_dir.path(),
-            interpreter,
-            false,
-            uv_virtualenv::OnExisting::Remove(uv_virtualenv::RemovalReason::TemporaryEnvironment),
-            false,
-            uv_virtualenv::Seed::Disabled,
-            false,
-        )?)
+        Some(uv_virtualenv::create_venv(temp_dir.path(), interpreter, false, uv_virtualenv::OnExisting::Remove(uv_virtualenv::RemovalReason::TemporaryEnvironment), false, uv_virtualenv::Seed::Disabled)?)
     } else {
         None
     };
@@ -370,8 +343,6 @@ pub(crate) async fn check(
                 python.as_deref().map(PythonRequest::parse),
                 &client_builder,
                 python_preference,
-                python_downloads,
-                &install_mirrors,
                 no_sync,
                 config_discovery,
                 Some(false),
@@ -504,10 +475,8 @@ pub(crate) async fn check(
                 project.workspace(),
                 &groups,
                 python.as_deref().map(PythonRequest::parse),
-                &install_mirrors,
                 &client_builder,
                 python_preference,
-                python_downloads,
                 no_sync,
                 config_discovery,
                 None,
@@ -538,8 +507,6 @@ pub(crate) async fn check(
                     workspace_python,
                     &client_builder,
                     python_preference,
-                    python_downloads,
-                    &install_mirrors,
                     ProjectEnvironmentPolicy::Optional,
                     None,
                     cache,

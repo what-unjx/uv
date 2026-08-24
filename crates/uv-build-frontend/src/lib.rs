@@ -378,7 +378,6 @@ impl SourceBuild {
                 ),
                 false,
                 uv_virtualenv::Seed::Disabled,
-                false,
             )?
         };
 

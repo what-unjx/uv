@@ -16,7 +16,7 @@ use uv_fs::Simplified;
 use uv_normalize::PackageName;
 use uv_normalize::{DEV_DEPENDENCIES, DefaultExtras, DefaultGroups};
 use uv_preview::Preview;
-use uv_python::{ConfigDiscovery, PythonDownloads, PythonPreference, PythonRequest};
+use uv_python::{ConfigDiscovery, PythonPreference, PythonRequest};
 use uv_scripts::{Pep723Metadata, Pep723Script};
 use uv_settings::{MalwareCheckSettings, PythonInstallMirrors};
 use uv_warnings::warn_user_once;
@@ -50,12 +50,10 @@ pub(crate) async fn remove(
     dependency_type: DependencyType,
     package: Option<PackageName>,
     python: Option<String>,
-    install_mirrors: PythonInstallMirrors,
     settings: ResolverInstallerSettings,
     client_builder: BaseClientBuilder<'_>,
     script: Option<Pep723Script>,
     python_preference: PythonPreference,
-    python_downloads: PythonDownloads,
     installer_metadata: bool,
     concurrency: Concurrency,
     config_discovery: ConfigDiscovery,

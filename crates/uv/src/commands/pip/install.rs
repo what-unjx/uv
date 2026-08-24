@@ -30,7 +30,7 @@ use uv_pep440::Version;
 use uv_preview::{Preview, PreviewFeature};
 use uv_pypi_types::Conflicts;
 use uv_python::{
-    EnvironmentPreference, Prefix, PythonDownloads, PythonEnvironment, PythonInstallation,
+    EnvironmentPreference, Prefix, PythonEnvironment, PythonInstallation,
     PythonPreference, PythonRequest, PythonVersion, Target,
 };
 use uv_requirements::{GroupsSpecification, RequirementsSource, RequirementsSpecification};
@@ -51,7 +51,6 @@ use crate::commands::pip::operations::Modifications;
 use crate::commands::pip::operations::{report_interpreter, report_target_environment};
 use crate::commands::pip::{operations, resolution_markers, resolution_tags};
 use crate::commands::pylock::{read_pylock_toml, resolve_pylock_toml};
-use crate::commands::reporters::PythonDownloadReporter;
 use crate::commands::{ExitStatus, diagnostics};
 use crate::printer::Printer;
 
@@ -115,8 +114,6 @@ pub(crate) async fn pip_install(
     modifications: Modifications,
     python_version: Option<PythonVersion>,
     python_platform: Option<TargetTriple>,
-    python_downloads: PythonDownloads,
-    install_mirrors: PythonInstallMirrors,
     strict: bool,
     exclude_newer: ExcludeNewer,
     sources: NoSources,
@@ -211,21 +208,8 @@ pub(crate) async fn pip_install(
     // Detect the current Python interpreter.
     let environment = if target.is_some() || prefix.is_some() {
         let python_request = python.as_deref().map(PythonRequest::parse);
-        let reporter = PythonDownloadReporter::single(printer);
 
-        let installation = PythonInstallation::find_or_download(
-            python_request.as_ref(),
-            EnvironmentPreference::from_system_flag(system, false),
-            python_preference.with_system_flag(system),
-            python_downloads,
-            &client_builder,
-            &cache,
-            Some(&reporter),
-            install_mirrors.python_install_mirror.as_deref(),
-            install_mirrors.pypy_install_mirror.as_deref(),
-            install_mirrors.python_downloads_json_url.as_deref(),
-        )
-        .await?;
+        let installation = PythonInstallation::find(python_request.as_ref().unwrap_or(&PythonRequest::Default), EnvironmentPreference::from_system_flag(system, false), python_preference.with_system_flag(system), &cache);
         report_interpreter(&installation, true, printer)?;
         PythonEnvironment::from_installation(installation)
     } else {

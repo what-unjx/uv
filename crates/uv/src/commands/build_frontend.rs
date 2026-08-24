@@ -33,7 +33,7 @@ use uv_normalize::PackageName;
 use uv_pep440::Version;
 use uv_preview::Preview;
 use uv_python::{
-    ConfigDiscovery, EnvironmentPreference, PythonDownloads, PythonEnvironment, PythonInstallation,
+    ConfigDiscovery, EnvironmentPreference, PythonEnvironment, PythonInstallation,
     PythonPreference, PythonRequest, PythonVersionFile, VersionFileDiscoveryOptions,
 };
 use uv_requirements::RequirementsSource;
@@ -47,7 +47,6 @@ use uv_workspace::{DiscoveryOptions, Workspace, WorkspaceCache, WorkspaceError};
 use crate::commands::ExitStatus;
 use crate::commands::pip::operations;
 use crate::commands::project::{ProjectError, find_requires_python};
-use crate::commands::reporters::PythonDownloadReporter;
 use crate::printer::Printer;
 use crate::settings::ResolverSettings;
 
@@ -205,12 +204,10 @@ pub(crate) async fn build_frontend(
     build_constraints_from_workspace: Vec<Requirement>,
     hash_checking: Option<HashCheckingMode>,
     python: Option<String>,
-    install_mirrors: PythonInstallMirrors,
     settings: &ResolverSettings,
     client_builder: &BaseClientBuilder<'_>,
     config_discovery: ConfigDiscovery,
     python_preference: PythonPreference,
-    python_downloads: PythonDownloads,
     concurrency: Concurrency,
     cache: &Cache,
     workspace_cache: &WorkspaceCache,
@@ -234,12 +231,10 @@ pub(crate) async fn build_frontend(
         &build_constraints_from_workspace,
         hash_checking,
         python.as_deref(),
-        install_mirrors,
         settings,
         client_builder,
         config_discovery,
         python_preference,
-        python_downloads,
         &concurrency,
         cache,
         workspace_cache,
@@ -283,12 +278,10 @@ async fn build_impl(
     build_constraints_from_workspace: &[Requirement],
     hash_checking: Option<HashCheckingMode>,
     python_request: Option<&str>,
-    install_mirrors: PythonInstallMirrors,
     settings: &ResolverSettings,
     client_builder: &BaseClientBuilder<'_>,
     config_discovery: ConfigDiscovery,
     python_preference: PythonPreference,
-    python_downloads: PythonDownloads,
     concurrency: &Concurrency,
     cache: &Cache,
     workspace_cache: &WorkspaceCache,
@@ -466,11 +459,9 @@ async fn build_impl(
             source.clone(),
             output_dir,
             python_request,
-            install_mirrors.clone(),
             config_discovery,
             workspace.as_deref(),
             python_preference,
-            python_downloads,
             cache,
             workspace_cache,
             printer,
@@ -542,11 +533,9 @@ async fn build_package(
     source: AnnotatedSource<'_>,
     output_dir: Option<&Path>,
     python_request: Option<&str>,
-    install_mirrors: PythonInstallMirrors,
     config_discovery: ConfigDiscovery,
     workspace: Result<&Workspace, &WorkspaceError>,
     python_preference: PythonPreference,
-    python_downloads: PythonDownloads,
     cache: &Cache,
     workspace_cache: &WorkspaceCache,
     printer: Printer,
@@ -619,19 +608,7 @@ async fn build_package(
     }
 
     // Locate the Python interpreter to use in the environment.
-    let interpreter = PythonInstallation::find_or_download(
-        interpreter_request.as_ref(),
-        EnvironmentPreference::Any,
-        python_preference,
-        python_downloads,
-        &client_builder,
-        cache,
-        Some(&PythonDownloadReporter::single(printer)),
-        install_mirrors.python_install_mirror.as_deref(),
-        install_mirrors.pypy_install_mirror.as_deref(),
-        install_mirrors.python_downloads_json_url.as_deref(),
-    )
-    .await?
+    let interpreter = PythonInstallation::find(interpreter_request.as_ref().unwrap_or(&PythonRequest::Default), EnvironmentPreference::Any, python_preference, cache)
     .into_interpreter();
 
     // Read build constraints.

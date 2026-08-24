@@ -28,7 +28,7 @@ use uv_pep440::Version;
 use uv_preview::{Preview, PreviewFeature};
 use uv_pypi_types::{ConflictKind, Conflicts, SupportedEnvironments};
 use uv_python::{
-    ConfigDiscovery, Interpreter, PythonDownloads, PythonEnvironment, PythonPreference,
+    ConfigDiscovery, Interpreter, PythonEnvironment, PythonPreference,
     PythonRequest,
 };
 use uv_requirements::{ExtrasResolver, LockedRequirements, read_lock_requirements};
@@ -53,7 +53,7 @@ use crate::commands::project::{
     ScriptInterpreter, UniversalState, WorkspacePython, init_script_python_requirement,
     script_extra_build_requires,
 };
-use crate::commands::reporters::{PythonDownloadReporter, ResolverReporter};
+use crate::commands::reporters::ResolverReporter;
 use crate::commands::{ExitStatus, ScriptPath, UvError, diagnostics, pip};
 use crate::printer::Printer;
 use crate::settings::{FrozenSource, LockCheck, LockCheckSource, ResolverSettings};
@@ -92,12 +92,10 @@ pub(crate) async fn lock(
     dry_run: DryRun,
     refresh: Refresh,
     python: Option<String>,
-    install_mirrors: PythonInstallMirrors,
     settings: ResolverSettings,
     client_builder: BaseClientBuilder<'_>,
     script: Option<ScriptPath>,
     python_preference: PythonPreference,
-    python_downloads: PythonDownloads,
     concurrency: Concurrency,
     config_discovery: ConfigDiscovery,
     cache: &Cache,
@@ -108,18 +106,14 @@ pub(crate) async fn lock(
     // If necessary, initialize the PEP 723 script.
     let script = match script {
         Some(ScriptPath::Path(path)) => {
-            let reporter = PythonDownloadReporter::single(printer);
             let requires_python = init_script_python_requirement(
                 python.as_deref(),
-                &install_mirrors,
                 project_dir,
                 false,
                 python_preference,
-                python_downloads,
                 config_discovery,
                 &client_builder,
                 cache,
-                &reporter,
             )
             .await?;
             Some(Pep723Script::init(&path, requires_python.specifiers()).await?)
@@ -166,8 +160,6 @@ pub(crate) async fn lock(
                     workspace_python,
                     &client_builder,
                     python_preference,
-                    python_downloads,
-                    &install_mirrors,
                     ProjectEnvironmentPolicy::Optional,
                     Some(false),
                     cache,
@@ -181,8 +173,6 @@ pub(crate) async fn lock(
                 python.as_deref().map(PythonRequest::parse),
                 &client_builder,
                 python_preference,
-                python_downloads,
-                &install_mirrors,
                 false,
                 config_discovery,
                 Some(false),

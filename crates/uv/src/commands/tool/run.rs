@@ -28,7 +28,7 @@ use uv_pep440::{VersionSpecifier, VersionSpecifiers};
 use uv_pep508::MarkerTree;
 use uv_preview::Preview;
 use uv_python::{
-    ConfigDiscovery, EnvironmentPreference, PythonDownloads, PythonEnvironment, PythonInstallation,
+    ConfigDiscovery, EnvironmentPreference, PythonEnvironment, PythonInstallation,
     PythonPreference, PythonRequest,
 };
 use uv_requirements::{RequirementsSource, RequirementsSpecification};
@@ -51,7 +51,6 @@ use crate::commands::pip::operations;
 use crate::commands::project::{
     EnvironmentSpecification, PlatformState, ProjectError, resolve_names,
 };
-use crate::commands::reporters::PythonDownloadReporter;
 use crate::commands::tool::common::{ToolPython, matching_packages, refine_interpreter};
 use crate::commands::tool::{Target, ToolRequest};
 use crate::commands::{
@@ -106,14 +105,12 @@ pub(crate) async fn run(
     lfs: GitLfsSetting,
     python: Option<String>,
     python_platform: Option<TargetTriple>,
-    install_mirrors: PythonInstallMirrors,
     options: ResolverInstallerOptions,
     settings: ResolverInstallerSettings,
     client_builder: BaseClientBuilder<'_>,
     invocation_source: ToolRunCommand,
     isolated: bool,
     python_preference: PythonPreference,
-    python_downloads: PythonDownloads,
     installer_metadata: bool,
     concurrency: Concurrency,
     cache: Cache,
@@ -265,14 +262,12 @@ pub(crate) async fn run(
         show_resolution,
         python.as_deref(),
         python_platform,
-        install_mirrors,
         options,
         &settings,
         &client_builder,
         isolated,
         lfs,
         python_preference,
-        python_downloads,
         installer_metadata,
         &concurrency,
         &cache,
@@ -698,14 +693,12 @@ async fn get_or_create_environment(
     show_resolution: bool,
     python: Option<&str>,
     python_platform: Option<TargetTriple>,
-    install_mirrors: PythonInstallMirrors,
     options: ResolverInstallerOptions,
     settings: &ResolverInstallerSettings,
     client_builder: &BaseClientBuilder<'_>,
     isolated: bool,
     lfs: GitLfsSetting,
     python_preference: PythonPreference,
-    python_downloads: PythonDownloads,
     installer_metadata: bool,
     concurrency: &Concurrency,
     cache: &Cache,
@@ -713,7 +706,6 @@ async fn get_or_create_environment(
     printer: Printer,
     preview: Preview,
 ) -> Result<(ToolRequirement, PythonEnvironment), ProjectError> {
-    let reporter = PythonDownloadReporter::single(printer);
 
     // Initialize any shared state.
     let state = PlatformState::default();
@@ -767,19 +759,7 @@ async fn get_or_create_environment(
     .python_request;
 
     // Discover an interpreter.
-    let interpreter = PythonInstallation::find_or_download(
-        python_request.as_ref(),
-        EnvironmentPreference::OnlySystem,
-        python_preference,
-        python_downloads,
-        client_builder,
-        cache,
-        Some(&reporter),
-        install_mirrors.python_install_mirror.as_deref(),
-        install_mirrors.pypy_install_mirror.as_deref(),
-        install_mirrors.python_downloads_json_url.as_deref(),
-    )
-    .await?
+    let interpreter = PythonInstallation::find(python_request.as_ref().unwrap_or(&PythonRequest::Default), EnvironmentPreference::OnlySystem, python_preference, cache)
     .into_interpreter();
 
     let from = match request {
@@ -1166,10 +1146,7 @@ async fn get_or_create_environment(
                     python_request.as_ref(),
                     &err,
                     client_builder,
-                    &reporter,
-                    &install_mirrors,
                     python_preference,
-                    python_downloads,
                     cache,
                 )
                 .await

@@ -32,7 +32,7 @@ use uv_installer::{InstallationStrategy, SatisfiesResult, SitePackages};
 use uv_normalize::{DefaultExtras, DefaultGroups, PackageName};
 use uv_preview::Preview;
 use uv_python::{
-    ConfigDiscovery, EnvironmentPreference, Interpreter, PyVenvConfiguration, PythonDownloads,
+    ConfigDiscovery, EnvironmentPreference, Interpreter, PyVenvConfiguration,
     PythonEnvironment, PythonInstallation, PythonPreference, PythonRequest, PythonVersionFile,
     VersionFileDiscoveryOptions,
 };
@@ -76,7 +76,6 @@ use crate::commands::project::{
     default_dependency_groups, script_extra_build_requires, script_specification,
     update_environment, validate_project_requires_python,
 };
-use crate::commands::reporters::PythonDownloadReporter;
 use crate::commands::{ExitStatus, diagnostics, project, read_env_files};
 use crate::printer::Printer;
 use crate::settings::{
@@ -107,11 +106,9 @@ pub(crate) async fn run(
     modifications: Modifications,
     python: Option<String>,
     python_platform: Option<TargetTriple>,
-    install_mirrors: PythonInstallMirrors,
     settings: ResolverInstallerSettings,
     client_builder: BaseClientBuilder<'_>,
     python_preference: PythonPreference,
-    python_downloads: PythonDownloads,
     installer_metadata: bool,
     concurrency: Concurrency,
     cache: Cache,
@@ -212,8 +209,6 @@ pub(crate) async fn run(
                 python.as_deref().map(PythonRequest::parse),
                 &client_builder,
                 python_preference,
-                python_downloads,
-                &install_mirrors,
                 no_sync,
                 config_discovery,
                 active.map_or(Some(false), Some),
@@ -385,8 +380,6 @@ pub(crate) async fn run(
                     python.as_deref().map(PythonRequest::parse),
                     &client_builder,
                     python_preference,
-                    python_downloads,
-                    &install_mirrors,
                     no_sync,
                     config_discovery,
                     active.map_or(Some(false), Some),
@@ -469,8 +462,6 @@ pub(crate) async fn run(
                     python.as_deref().map(PythonRequest::parse),
                     &client_builder,
                     python_preference,
-                    python_downloads,
-                    &install_mirrors,
                     no_sync,
                     config_discovery,
                     active.map_or(Some(false), Some),
@@ -481,17 +472,9 @@ pub(crate) async fn run(
                 .into_interpreter();
 
                 temp_dir = cache.venv_dir()?;
-                let environment = uv_virtualenv::create_venv(
-                    temp_dir.path(),
-                    interpreter,
-                    false,
-                    uv_virtualenv::OnExisting::Remove(
+                let environment = uv_virtualenv::create_venv(temp_dir.path(), interpreter, false, uv_virtualenv::OnExisting::Remove(
                         uv_virtualenv::RemovalReason::TemporaryEnvironment,
-                    ),
-                    false,
-                    uv_virtualenv::Seed::Disabled,
-                    false,
-                )?;
+                    ), false, uv_virtualenv::Seed::Disabled)?;
 
                 Some(environment.into_interpreter())
             }
@@ -661,19 +644,7 @@ pub(crate) async fn run(
                 )
                 .await?;
 
-                let interpreter = PythonInstallation::find_or_download(
-                    python_request.as_ref(),
-                    EnvironmentPreference::Any,
-                    python_preference,
-                    python_downloads,
-                    &client_builder,
-                    &cache,
-                    Some(&download_reporter),
-                    install_mirrors.python_install_mirror.as_deref(),
-                    install_mirrors.pypy_install_mirror.as_deref(),
-                    install_mirrors.python_downloads_json_url.as_deref(),
-                )
-                .await?
+                let interpreter = PythonInstallation::find(python_request.as_ref().unwrap_or(&PythonRequest::Default), EnvironmentPreference::Any, python_preference, &cache)
                 .into_interpreter();
 
                 if let Some(requires_python) = requires_python.as_ref() {
@@ -688,17 +659,9 @@ pub(crate) async fn run(
 
                 // Create a virtual environment
                 temp_dir = cache.venv_dir()?;
-                uv_virtualenv::create_venv(
-                    temp_dir.path(),
-                    interpreter,
-                    false,
-                    uv_virtualenv::OnExisting::Remove(
+                uv_virtualenv::create_venv(temp_dir.path(), interpreter, false, uv_virtualenv::OnExisting::Remove(
                         uv_virtualenv::RemovalReason::TemporaryEnvironment,
-                    ),
-                    false,
-                    uv_virtualenv::Seed::Disabled,
-                    false,
-                )?
+                    ), false, uv_virtualenv::Seed::Disabled)?
             } else {
                 // If we're not isolating the environment, reuse the base environment for the
                 // project.
@@ -706,10 +669,8 @@ pub(crate) async fn run(
                     project.workspace(),
                     &groups,
                     python.as_deref().map(PythonRequest::parse),
-                    &install_mirrors,
                     &client_builder,
                     python_preference,
-                    python_downloads,
                     no_sync,
                     config_discovery,
                     active,
@@ -897,20 +858,8 @@ pub(crate) async fn run(
                     .and_then(PythonVersionFile::into_version)
                 };
 
-                let python = PythonInstallation::find_or_download(
-                    python_request.as_ref(),
-                    // No opt-in is required for system environments, since we are not mutating it.
-                    EnvironmentPreference::Any,
-                    python_preference,
-                    python_downloads,
-                    &client_builder,
-                    &cache,
-                    Some(&download_reporter),
-                    install_mirrors.python_install_mirror.as_deref(),
-                    install_mirrors.pypy_install_mirror.as_deref(),
-                    install_mirrors.python_downloads_json_url.as_deref(),
-                )
-                .await?;
+                let python = PythonInstallation::find(python_request.as_ref().unwrap_or(&PythonRequest::Default), // No opt-in is required for system environments, since we are not mutating it.
+                    EnvironmentPreference::Any, &client_builder);
 
                 python.into_interpreter()
             };
@@ -920,17 +869,9 @@ pub(crate) async fn run(
 
                 // If we're isolating the environment, use an ephemeral virtual environment.
                 temp_dir = cache.venv_dir()?;
-                let venv = uv_virtualenv::create_venv(
-                    temp_dir.path(),
-                    interpreter,
-                    false,
-                    uv_virtualenv::OnExisting::Remove(
+                let venv = uv_virtualenv::create_venv(temp_dir.path(), interpreter, false, uv_virtualenv::OnExisting::Remove(
                         uv_virtualenv::RemovalReason::TemporaryEnvironment,
-                    ),
-                    false,
-                    uv_virtualenv::Seed::Disabled,
-                    false,
-                )?;
+                    ), false, uv_virtualenv::Seed::Disabled)?;
                 venv.into_interpreter()
             } else {
                 interpreter
@@ -1045,17 +986,9 @@ pub(crate) async fn run(
                 dir.path().simplified_display()
             );
 
-            uv_virtualenv::create_venv(
-                dir.path(),
-                base_interpreter.clone(),
-                false,
-                uv_virtualenv::OnExisting::Remove(
+            uv_virtualenv::create_venv(dir.path(), base_interpreter.clone(), false, uv_virtualenv::OnExisting::Remove(
                     uv_virtualenv::RemovalReason::TemporaryEnvironment,
-                ),
-                false,
-                uv_virtualenv::Seed::Disabled,
-                false,
-            )
+                ), false, uv_virtualenv::Seed::Disabled)
         })
         .transpose()?
         .map(EphemeralEnvironment::from);

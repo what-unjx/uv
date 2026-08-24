@@ -8,11 +8,9 @@ use uv_configuration::DependencyGroupsWithDefaults;
 use uv_errors::ErrorWithHints;
 use uv_fs::Simplified;
 use uv_python::{
-    ConfigDiscovery, EnvironmentPreference, PythonDownloads, PythonInstallation, PythonPreference,
-    PythonRequest,
+    ConfigDiscovery, EnvironmentPreference, PythonInstallation, PythonPreference, PythonRequest,
 };
 use uv_scripts::Pep723ItemRef;
-use uv_settings::PythonInstallMirrors;
 use uv_warnings::{warn_user, warn_user_once};
 use uv_workspace::{DiscoveryOptions, VirtualProject, WorkspaceCache, WorkspaceErrorKind};
 
@@ -33,7 +31,6 @@ pub(crate) async fn find(
     system: bool,
     config_discovery: ConfigDiscovery,
     python_preference: PythonPreference,
-    python_downloads_json_url: Option<&str>,
     client_builder: &BaseClientBuilder<'_>,
     cache: &Cache,
     workspace_cache: &WorkspaceCache,
@@ -94,14 +91,6 @@ pub(crate) async fn find(
         python_preference,
         cache,
     )?;
-    python
-        .download_and_warn_if_outdated_prerelease(
-            &python_request,
-            client_builder,
-            cache,
-            python_downloads_json_url,
-        )
-        .await?;
 
     // Warn if the discovered Python version is incompatible with the current workspace
     if let Some(requires_python) = requires_python {
@@ -143,7 +132,6 @@ pub(crate) async fn find_script(
     resolve_links: bool,
     client_builder: &BaseClientBuilder<'_>,
     python_preference: PythonPreference,
-    python_downloads: PythonDownloads,
     config_discovery: ConfigDiscovery,
     cache: &Cache,
     printer: Printer,
@@ -153,8 +141,6 @@ pub(crate) async fn find_script(
         None,
         client_builder,
         python_preference,
-        python_downloads,
-        &PythonInstallMirrors::default(),
         false,
         config_discovery,
         Some(false),

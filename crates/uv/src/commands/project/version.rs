@@ -19,7 +19,7 @@ use uv_normalize::DefaultExtras;
 use uv_normalize::PackageName;
 use uv_pep440::{BumpCommand, PrereleaseKind, Version};
 use uv_preview::Preview;
-use uv_python::{ConfigDiscovery, PythonDownloads, PythonPreference, PythonRequest};
+use uv_python::{ConfigDiscovery, PythonPreference, PythonRequest};
 use uv_settings::{MalwareCheckSettings, PythonInstallMirrors};
 use uv_workspace::pyproject::PyProjectToml;
 use uv_workspace::pyproject_mut::Error;
@@ -83,11 +83,9 @@ pub(crate) async fn project_version(
     active: Option<bool>,
     no_sync: bool,
     python: Option<String>,
-    install_mirrors: PythonInstallMirrors,
     settings: ResolverInstallerSettings,
     client_builder: BaseClientBuilder<'_>,
     python_preference: PythonPreference,
-    python_downloads: PythonDownloads,
     installer_metadata: bool,
     concurrency: Concurrency,
     config_discovery: ConfigDiscovery,
@@ -346,11 +344,9 @@ pub(crate) async fn project_version(
             active,
             no_sync,
             python,
-            install_mirrors,
             &settings,
             client_builder,
             python_preference,
-            python_downloads,
             installer_metadata,
             &concurrency,
             config_discovery,
@@ -542,11 +538,9 @@ async fn lock_and_sync(
     active: Option<bool>,
     no_sync: bool,
     python: Option<String>,
-    install_mirrors: PythonInstallMirrors,
     settings: &ResolverInstallerSettings,
     client_builder: BaseClientBuilder<'_>,
     python_preference: PythonPreference,
-    python_downloads: PythonDownloads,
     installer_metadata: bool,
     concurrency: &Concurrency,
     config_discovery: ConfigDiscovery,
@@ -584,8 +578,6 @@ async fn lock_and_sync(
             workspace_python,
             &client_builder,
             python_preference,
-            python_downloads,
-            &install_mirrors,
             ProjectEnvironmentPolicy::Optional,
             active,
             cache,
@@ -601,10 +593,8 @@ async fn lock_and_sync(
             project.workspace(),
             &groups,
             python.as_deref().map(PythonRequest::parse),
-            &install_mirrors,
             &client_builder,
             python_preference,
-            python_downloads,
             no_sync,
             config_discovery,
             active,

@@ -20,7 +20,7 @@ use uv_normalize::PackageName;
 use uv_pep440::{Operator, Version};
 use uv_preview::{Preview, PreviewFeature};
 use uv_python::{
-    EnvironmentPreference, Interpreter, PythonDownloads, PythonInstallation, PythonPreference,
+    EnvironmentPreference, Interpreter, PythonInstallation, PythonPreference,
     PythonRequest,
 };
 use uv_requirements::RequirementsSpecification;
@@ -39,7 +39,6 @@ use crate::commands::project::{
     EnvironmentResolution, EnvironmentUpdate, PlatformState, resolve_environment, sync_environment,
     update_environment,
 };
-use crate::commands::reporters::PythonDownloadReporter;
 use crate::commands::tool::common::{ToolLock, remove_entrypoints, tool_environment_spec};
 use crate::commands::{ExitStatus, conjunction, tool::common::finalize_tool_install};
 use crate::printer::Printer;
@@ -50,12 +49,10 @@ pub(crate) async fn upgrade(
     names: Vec<String>,
     python: Option<String>,
     python_platform: Option<TargetTriple>,
-    install_mirrors: PythonInstallMirrors,
     args: ResolverInstallerOptions,
     filesystem: ResolverInstallerOptions,
     client_builder: BaseClientBuilder<'_>,
     python_preference: PythonPreference,
-    python_downloads: PythonDownloads,
     installer_metadata: bool,
     concurrency: Concurrency,
     cache: &Cache,
@@ -96,25 +93,11 @@ pub(crate) async fn upgrade(
         return Ok(ExitStatus::Success);
     }
 
-    let reporter = PythonDownloadReporter::single(printer);
-
     let python_request = python.as_deref().map(PythonRequest::parse);
 
     let interpreter = if python_request.is_some() {
         Some(
-            PythonInstallation::find_or_download(
-                python_request.as_ref(),
-                EnvironmentPreference::OnlySystem,
-                python_preference,
-                python_downloads,
-                &client_builder,
-                cache,
-                Some(&reporter),
-                install_mirrors.python_install_mirror.as_deref(),
-                install_mirrors.pypy_install_mirror.as_deref(),
-                install_mirrors.python_downloads_json_url.as_deref(),
-            )
-            .await?
+            PythonInstallation::find(python_request.as_ref().unwrap_or(&PythonRequest::Default), EnvironmentPreference::OnlySystem, python_preference, cache)
             .into_interpreter(),
         )
     } else {

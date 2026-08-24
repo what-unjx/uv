@@ -18,14 +18,14 @@ use uv_cli::{
     AuthTokenArgs, ColorChoice, ExternalCommand, GlobalArgs, InitArgs, ListFormat, LockArgs, Maybe,
     MetadataArgs, PipCheckArgs, PipCompileArgs, PipFreezeArgs, PipInstallArgs, PipListArgs,
     PipShowArgs, PipSyncArgs, PipTreeArgs, PipUninstallArgs, ProjectDependencyGroupsArgs,
-    PythonFindArgs, PythonInstallArgs, PythonListArgs, PythonListFormat, PythonPinArgs,
-    PythonUninstallArgs, PythonUpgradeArgs, RemoveArgs, RunArgs, SyncArgs, SyncFormat,
+    PythonFindArgs, PythonListArgs, PythonListFormat, PythonPinArgs, RemoveArgs, RunArgs,
+    SyncArgs, SyncFormat,
     ToolAuditArgs, ToolDirArgs, ToolInstallArgs, ToolListArgs, ToolRunArgs, ToolUninstallArgs,
     TreeArgs, TreeFormat, UpgradeArgs, VenvArgs, VersionArgs, VersionBumpSpec, VersionFormat,
 };
 use uv_cli::{
     AuthorFrom, BuildArgs, BuildOptionsArgs, CheckArgs, ExcludeNewerArgs, ExportArgs, FormatArgs,
-    HashCheckingArgs, PackageExcludeNewerArgs, PublishArgs, PythonDirArgs, RegistryClientArgs,
+    HashCheckingArgs, PackageExcludeNewerArgs, PublishArgs, RegistryClientArgs,
     ResolverArgs, ResolverInstallerArgs, ToolUpgradeArgs,
     options::{
         Flag, FlagSource, IntoPipOptions, check_conflicts, flag, resolve_flag, resolve_flag_pair,
@@ -50,7 +50,7 @@ use uv_pep440::Version;
 use uv_pep508::{MarkerTree, RequirementOrigin};
 use uv_preview::Preview;
 use uv_pypi_types::SupportedEnvironments;
-use uv_python::{Prefix, PythonDownloads, PythonPreference, PythonVersion, Target};
+use uv_python::{Prefix, PythonPreference, PythonVersion, Target};
 use uv_redacted::DisplaySafeUrl;
 use uv_resolver::{
     AnnotationStyle, DependencyMode, ExcludeNewer, ExcludeNewerOverride, ExcludeNewerPackage,
@@ -87,7 +87,6 @@ pub(crate) struct GlobalSettings {
     pub(crate) show_settings: bool,
     pub(crate) preview: Preview,
     pub(crate) python_preference: PythonPreference,
-    pub(crate) python_downloads: PythonDownloads,
     pub(crate) no_progress: bool,
     pub(crate) installer_metadata: bool,
     // [第1次试飞后修正] 新增：统一存储根目录
@@ -147,15 +146,6 @@ impl GlobalSettings {
             show_settings: args.show_settings,
             preview: resolve_preview(args, workspace, environment)?,
             python_preference,
-            python_downloads: flag(
-                args.allow_python_downloads,
-                args.no_python_downloads,
-                "python-downloads",
-            )?
-            .map(PythonDownloads::from)
-            .combine(env(env::UV_PYTHON_DOWNLOADS))
-            .combine(workspace.and_then(|workspace| workspace.globals.python_downloads))
-            .unwrap_or_default(),
             // Disable the progress bar with `RUST_LOG` to avoid progress fragments interleaving
             // with log messages.
             no_progress: resolve_flag(args.no_progress, "no-progress", environment.no_progress)
@@ -486,7 +476,6 @@ pub(crate) struct InitSettings {
     pub(crate) pin_python: bool,
     pub(crate) no_workspace: bool,
     pub(crate) python: Option<String>,
-    pub(crate) install_mirrors: PythonInstallMirrors,
 }
 
 impl InitSettings {
@@ -696,7 +685,6 @@ pub(crate) struct RunSettings {
     pub(crate) no_sync: bool,
     pub(crate) python: Option<String>,
     pub(crate) python_platform: Option<TargetTriple>,
-    pub(crate) install_mirrors: PythonInstallMirrors,
     pub(crate) refresh: Refresh,
     pub(crate) settings: ResolverInstallerSettings,
     pub(crate) env_file: EnvFile,
@@ -892,7 +880,6 @@ pub(crate) struct ToolRunSettings {
     pub(crate) lfs: GitLfsSetting,
     pub(crate) python: Option<String>,
     pub(crate) python_platform: Option<TargetTriple>,
-    pub(crate) install_mirrors: PythonInstallMirrors,
     pub(crate) refresh: Refresh,
     pub(crate) options: ResolverInstallerOptions,
     pub(crate) settings: ResolverInstallerSettings,
@@ -1057,7 +1044,6 @@ pub(crate) struct ToolInstallSettings {
     pub(crate) settings: ResolverInstallerSettings,
     pub(crate) force: bool,
     pub(crate) editable: bool,
-    pub(crate) install_mirrors: PythonInstallMirrors,
 }
 
 impl ToolInstallSettings {
@@ -1175,7 +1161,6 @@ pub(crate) struct ToolUpgradeSettings {
     pub(crate) names: Vec<String>,
     pub(crate) python: Option<String>,
     pub(crate) python_platform: Option<TargetTriple>,
-    pub(crate) install_mirrors: PythonInstallMirrors,
     pub(crate) args: ResolverInstallerOptions,
     pub(crate) filesystem: ResolverInstallerOptions,
 }
@@ -1296,7 +1281,6 @@ impl ToolListSettings {
                     exclude_newer_package,
                 },
             python_preference: _,
-            no_python_downloads: _,
         } = args;
 
         let top_level = filesystem
@@ -1423,324 +1407,37 @@ impl ToolDirSettings {
     }
 }
 
-#[derive(Debug, Clone, Default)]
-pub(crate) enum PythonListKinds {
-    #[default]
-    Default,
-    /// Only list version downloads.
-    Downloads,
-    /// Only list installed versions.
-    Installed,
-}
-
-/// The resolved settings to use for a `tool run` invocation.
+/// The resolved settings to use for a python list invocation.
 #[derive(Debug, Clone)]
 pub(crate) struct PythonListSettings {
     pub(crate) request: Option<String>,
-    pub(crate) kinds: PythonListKinds,
-    pub(crate) all_platforms: bool,
-    pub(crate) all_arches: bool,
     pub(crate) all_versions: bool,
-    pub(crate) show_urls: bool,
     pub(crate) output_format: PythonListFormat,
-    pub(crate) python_downloads_json_url: Option<String>,
-    pub(crate) python_install_mirror: Option<String>,
-    pub(crate) pypy_install_mirror: Option<String>,
 }
 
 impl PythonListSettings {
-    /// Resolve the [`PythonListSettings`] from the CLI and filesystem configuration.
+    /// Resolve the [PythonListSettings] from the CLI and filesystem configuration.
     #[expect(clippy::needless_pass_by_value)]
     pub(crate) fn resolve(
         args: PythonListArgs,
-        filesystem: Option<FilesystemOptions>,
-        environment: EnvironmentOptions,
+        _filesystem: Option<FilesystemOptions>,
+        _environment: EnvironmentOptions,
     ) -> Self {
         let PythonListArgs {
             request,
             all_versions,
-            all_platforms,
-            all_arches,
-            only_installed,
-            only_downloads,
-            show_urls,
             output_format,
-            python_downloads_json_url: python_downloads_json_url_arg,
         } = args;
-
-        let options = filesystem.map(FilesystemOptions::into_options);
-        let (
-            python_downloads_json_url_option,
-            python_install_mirror_option,
-            pypy_install_mirror_option,
-        ) = match &options {
-            Some(options) => (
-                options.install_mirrors.python_downloads_json_url.clone(),
-                options.install_mirrors.python_install_mirror.clone(),
-                options.install_mirrors.pypy_install_mirror.clone(),
-            ),
-            None => (None, None, None),
-        };
-
-        let python_downloads_json_url = python_downloads_json_url_arg
-            .or(environment
-                .install_mirrors
-                .python_downloads_json_url
-                .clone())
-            .or(python_downloads_json_url_option);
-
-        let python_install_mirror = environment
-            .install_mirrors
-            .python_install_mirror
-            .clone()
-            .or(python_install_mirror_option);
-
-        let pypy_install_mirror = environment
-            .install_mirrors
-            .pypy_install_mirror
-            .clone()
-            .or(pypy_install_mirror_option);
-
-        let kinds = if only_installed {
-            PythonListKinds::Installed
-        } else if only_downloads {
-            PythonListKinds::Downloads
-        } else {
-            PythonListKinds::default()
-        };
 
         Self {
             request,
-            kinds,
-            all_platforms,
-            all_arches,
             all_versions,
-            show_urls,
             output_format,
-            python_downloads_json_url,
-            python_install_mirror,
-            pypy_install_mirror,
         }
     }
 }
 
-/// The resolved settings to use for a `python dir` invocation.
-#[derive(Debug, Clone)]
-pub(crate) struct PythonDirSettings {
-    pub(crate) bin: bool,
-}
-
-impl PythonDirSettings {
-    /// Resolve the [`PythonDirSettings`] from the CLI and filesystem configuration.
-    #[expect(clippy::needless_pass_by_value)]
-    pub(crate) fn resolve(args: PythonDirArgs, _filesystem: Option<FilesystemOptions>) -> Self {
-        let PythonDirArgs { bin } = args;
-
-        Self { bin }
-    }
-}
-
-/// The resolved settings to use for a `python install` invocation.
-#[derive(Debug, Clone)]
-pub(crate) struct PythonInstallSettings {
-    pub(crate) install_dir: Option<PathBuf>,
-    pub(crate) targets: Vec<String>,
-    pub(crate) reinstall: bool,
-    pub(crate) force: bool,
-    pub(crate) upgrade: PythonUpgrade,
-    pub(crate) bin: Option<bool>,
-    pub(crate) registry: Option<bool>,
-    pub(crate) python_install_mirror: Option<String>,
-    pub(crate) pypy_install_mirror: Option<String>,
-    pub(crate) python_downloads_json_url: Option<String>,
-    pub(crate) default: bool,
-    pub(crate) compile_bytecode: bool,
-}
-
-impl PythonInstallSettings {
-    /// Resolve the [`PythonInstallSettings`] from the CLI and filesystem configuration.
-    pub(crate) fn resolve(
-        args: PythonInstallArgs,
-        filesystem: Option<FilesystemOptions>,
-        environment: EnvironmentOptions,
-    ) -> anyhow::Result<Self> {
-        let filesystem_install_mirrors = filesystem
-            .map(|fs| fs.install_mirrors.clone())
-            .unwrap_or_default();
-
-        let install_mirrors = args
-            .install_mirrors()
-            .combine(environment.install_mirrors)
-            .combine(filesystem_install_mirrors);
-
-        let PythonInstallMirrors {
-            python_install_mirror,
-            pypy_install_mirror,
-            python_downloads_json_url,
-        } = install_mirrors;
-
-        let PythonInstallArgs {
-            install_dir,
-            targets,
-            reinstall,
-            bin,
-            no_bin,
-            registry,
-            no_registry,
-            force,
-            upgrade,
-            mirror: _,
-            pypy_mirror: _,
-            python_downloads_json_url: _,
-            default,
-            compile_bytecode,
-        } = args;
-
-        Ok(Self {
-            install_dir,
-            targets,
-            reinstall,
-            force,
-            upgrade: if upgrade {
-                PythonUpgrade::Enabled(PythonUpgradeSource::Install)
-            } else {
-                PythonUpgrade::Disabled
-            },
-            bin: flag(bin, no_bin, "bin")?.or(environment.python_install_bin),
-            registry: match flag(registry, no_registry, "registry")? {
-                Some(registry) => Some(registry),
-                None => environment.python_install_registry.or(
-                    if environment.python_no_registry.value == Some(true) {
-                        Some(false)
-                    } else {
-                        None
-                    },
-                ),
-            },
-            python_install_mirror,
-            pypy_install_mirror,
-            python_downloads_json_url,
-            default,
-            compile_bytecode: flag(
-                compile_bytecode.compile_bytecode,
-                compile_bytecode.no_compile_bytecode,
-                "compile-bytecode",
-            )?
-            .unwrap_or_default(),
-        })
-    }
-}
-
-/// The resolved settings to use for a `python upgrade` invocation.
-#[expect(clippy::struct_excessive_bools)]
-#[derive(Debug, Clone)]
-pub(crate) struct PythonUpgradeSettings {
-    pub(crate) install_dir: Option<PathBuf>,
-    pub(crate) targets: Vec<String>,
-    pub(crate) force: bool,
-    pub(crate) registry: Option<bool>,
-    pub(crate) python_install_mirror: Option<String>,
-    pub(crate) pypy_install_mirror: Option<String>,
-    pub(crate) reinstall: bool,
-    pub(crate) python_downloads_json_url: Option<String>,
-    pub(crate) default: bool,
-    pub(crate) bin: Option<bool>,
-    pub(crate) compile_bytecode: bool,
-}
-
-impl PythonUpgradeSettings {
-    /// Resolve the [`PythonUpgradeSettings`] from the CLI and filesystem configuration.
-    pub(crate) fn resolve(
-        args: PythonUpgradeArgs,
-        filesystem: Option<FilesystemOptions>,
-        environment: EnvironmentOptions,
-    ) -> anyhow::Result<Self> {
-        let filesystem_install_mirrors = filesystem
-            .map(|fs| fs.install_mirrors.clone())
-            .unwrap_or_default();
-
-        let install_mirrors = args
-            .install_mirrors()
-            .combine(environment.install_mirrors)
-            .combine(filesystem_install_mirrors);
-
-        let PythonInstallMirrors {
-            python_install_mirror,
-            pypy_install_mirror,
-            python_downloads_json_url,
-        } = install_mirrors;
-
-        let force = false;
-        let default = false;
-        let bin = None;
-        let registry = environment.python_install_registry.or(
-            if environment.python_no_registry.value == Some(true) {
-                Some(false)
-            } else {
-                None
-            },
-        );
-
-        let PythonUpgradeArgs {
-            install_dir,
-            targets,
-            mirror: _,
-            pypy_mirror: _,
-            reinstall,
-            python_downloads_json_url: _,
-            compile_bytecode,
-        } = args;
-
-        Ok(Self {
-            install_dir,
-            targets,
-            force,
-            registry,
-            python_install_mirror,
-            pypy_install_mirror,
-            reinstall,
-            python_downloads_json_url,
-            default,
-            bin,
-            compile_bytecode: flag(
-                compile_bytecode.compile_bytecode,
-                compile_bytecode.no_compile_bytecode,
-                "compile-bytecode",
-            )?
-            .unwrap_or_default(),
-        })
-    }
-}
-
-/// The resolved settings to use for a `python uninstall` invocation.
-#[derive(Debug, Clone)]
-pub(crate) struct PythonUninstallSettings {
-    pub(crate) install_dir: Option<PathBuf>,
-    pub(crate) targets: Vec<String>,
-    pub(crate) all: bool,
-}
-
-impl PythonUninstallSettings {
-    /// Resolve the [`PythonUninstallSettings`] from the CLI and filesystem configuration.
-    pub(crate) fn resolve(
-        args: PythonUninstallArgs,
-        _filesystem: Option<FilesystemOptions>,
-    ) -> Self {
-        let PythonUninstallArgs {
-            install_dir,
-            targets,
-            all,
-        } = args;
-
-        Self {
-            install_dir,
-            targets,
-            all,
-        }
-    }
-}
-
-/// The resolved settings to use for a `python find` invocation.
+/// The resolved settings to use for a python find invocation.
 #[derive(Debug, Clone)]
 pub(crate) struct PythonFindSettings {
     pub(crate) request: Option<String>,
@@ -1748,15 +1445,14 @@ pub(crate) struct PythonFindSettings {
     pub(crate) resolve_links: bool,
     pub(crate) no_project: bool,
     pub(crate) system: bool,
-    pub(crate) python_downloads_json_url: Option<String>,
 }
 
 impl PythonFindSettings {
-    /// Resolve the [`PythonFindSettings`] from the CLI and workspace configuration.
+    /// Resolve the [PythonFindSettings] from the CLI and workspace configuration.
     pub(crate) fn resolve(
         args: PythonFindArgs,
-        filesystem: Option<FilesystemOptions>,
-        environment: EnvironmentOptions,
+        _filesystem: Option<FilesystemOptions>,
+        _environment: EnvironmentOptions,
     ) -> anyhow::Result<Self> {
         let PythonFindArgs {
             request,
@@ -1766,25 +1462,7 @@ impl PythonFindSettings {
             system,
             no_system,
             script: _,
-            python_downloads_json_url,
         } = args;
-
-        let filesystem_install_mirrors = filesystem
-            .map(|fs| fs.install_mirrors.clone())
-            .unwrap_or_default();
-
-        let install_mirrors = PythonInstallMirrors {
-            python_downloads_json_url,
-            ..Default::default()
-        }
-        .combine(environment.install_mirrors)
-        .combine(filesystem_install_mirrors);
-
-        let PythonInstallMirrors {
-            python_install_mirror: _,
-            pypy_install_mirror: _,
-            python_downloads_json_url,
-        } = install_mirrors;
 
         Ok(Self {
             request,
@@ -1792,12 +1470,11 @@ impl PythonFindSettings {
             resolve_links,
             no_project,
             system: flag(system, no_system, "system")?.unwrap_or_default(),
-            python_downloads_json_url,
         })
     }
 }
 
-/// The resolved settings to use for a `python pin` invocation.
+/// The resolved settings to use for a python pin invocation.
 #[derive(Debug, Clone)]
 pub(crate) struct PythonPinSettings {
     pub(crate) request: Option<String>,
@@ -1805,15 +1482,14 @@ pub(crate) struct PythonPinSettings {
     pub(crate) no_project: bool,
     pub(crate) global: bool,
     pub(crate) rm: bool,
-    pub(crate) install_mirrors: PythonInstallMirrors,
 }
 
 impl PythonPinSettings {
-    /// Resolve the [`PythonPinSettings`] from the CLI and workspace configuration.
+    /// Resolve the [PythonPinSettings] from the CLI and workspace configuration.
     pub(crate) fn resolve(
         args: PythonPinArgs,
-        filesystem: Option<FilesystemOptions>,
-        environment: EnvironmentOptions,
+        _filesystem: Option<FilesystemOptions>,
+        _environment: EnvironmentOptions,
     ) -> anyhow::Result<Self> {
         let PythonPinArgs {
             request,
@@ -1822,19 +1498,7 @@ impl PythonPinSettings {
             no_project,
             global,
             rm,
-            python_downloads_json_url,
         } = args;
-
-        let filesystem_install_mirrors = filesystem
-            .map(|fs| fs.install_mirrors.clone())
-            .unwrap_or_default();
-
-        let install_mirrors = PythonInstallMirrors {
-            python_downloads_json_url,
-            ..Default::default()
-        }
-        .combine(environment.install_mirrors)
-        .combine(filesystem_install_mirrors);
 
         Ok(Self {
             request,
@@ -1842,7 +1506,6 @@ impl PythonPinSettings {
             no_project,
             global,
             rm,
-            install_mirrors,
         })
     }
 }
@@ -1865,7 +1528,6 @@ pub(crate) struct SyncSettings {
     pub(super) package: Vec<PackageName>,
     pub(super) python: Option<String>,
     pub(super) python_platform: Option<TargetTriple>,
-    pub(super) install_mirrors: PythonInstallMirrors,
     pub(super) refresh: Refresh,
     pub(super) settings: ResolverInstallerSettings,
     pub(super) output_format: SyncFormat,
@@ -2074,7 +1736,6 @@ pub(crate) struct LockSettings {
     pub(crate) dry_run: DryRun,
     pub(crate) script: Option<PathBuf>,
     pub(crate) python: Option<String>,
-    pub(crate) install_mirrors: PythonInstallMirrors,
     pub(crate) refresh: Refresh,
     pub(crate) settings: ResolverSettings,
 }
@@ -2136,7 +1797,6 @@ impl LockSettings {
 pub(crate) struct UpgradeSettings {
     pub(crate) packages: Vec<PackageName>,
     pub(crate) exclude: Vec<PackageName>,
-    pub(crate) install_mirrors: PythonInstallMirrors,
     pub(crate) settings: ResolverSettings,
 }
 
@@ -2183,7 +1843,6 @@ pub(crate) struct MetadataSettings {
     pub(crate) sync: Option<Modifications>,
     pub(crate) active: bool,
     pub(crate) python: Option<String>,
-    pub(crate) install_mirrors: PythonInstallMirrors,
     pub(crate) refresh: Refresh,
     pub(crate) settings: ResolverSettings,
     pub(crate) malware_settings: MalwareCheckSettings,
@@ -2279,7 +1938,6 @@ pub(crate) struct AddSettings {
     pub(crate) only_install_local: bool,
     pub(crate) no_install_package: Vec<PackageName>,
     pub(crate) only_install_package: Vec<PackageName>,
-    pub(crate) install_mirrors: PythonInstallMirrors,
     pub(crate) refresh: Refresh,
     pub(crate) indexes: Vec<Index>,
     pub(crate) settings: ResolverInstallerSettings,
@@ -2538,7 +2196,6 @@ pub(crate) struct RemoveSettings {
     pub(super) package: Option<PackageName>,
     pub(super) script: Option<PathBuf>,
     pub(super) python: Option<String>,
-    pub(super) install_mirrors: PythonInstallMirrors,
     pub(super) refresh: Refresh,
     pub(super) settings: ResolverInstallerSettings,
     pub(super) malware_settings: MalwareCheckSettings,
@@ -2644,7 +2301,6 @@ pub(crate) struct VersionSettings {
     pub(crate) no_sync: bool,
     pub(crate) package: Option<PackageName>,
     pub(crate) python: Option<String>,
-    pub(crate) install_mirrors: PythonInstallMirrors,
     pub(crate) refresh: Refresh,
     pub(crate) settings: ResolverInstallerSettings,
     pub(crate) malware_settings: MalwareCheckSettings,
@@ -2740,7 +2396,6 @@ pub(crate) struct TreeSettings {
     pub(super) python_version: Option<PythonVersion>,
     pub(super) python_platform: Option<TargetTriple>,
     pub(super) python: Option<String>,
-    pub(super) install_mirrors: PythonInstallMirrors,
     pub(super) resolver: ResolverSettings,
 }
 
@@ -2855,7 +2510,6 @@ pub(crate) struct ExportSettings {
     pub(super) include_find_links: bool,
     pub(super) script: Option<PathBuf>,
     pub(super) python: Option<String>,
-    pub(super) install_mirrors: PythonInstallMirrors,
     pub(super) refresh: Refresh,
     pub(super) settings: ResolverSettings,
 }
@@ -3069,7 +2723,6 @@ pub(crate) struct CheckSettings {
     pub(crate) no_install_project: bool,
     pub(crate) isolated: bool,
     pub(crate) python: Option<String>,
-    pub(crate) install_mirrors: PythonInstallMirrors,
     pub(crate) refresh: Refresh,
     pub(crate) settings: ResolverInstallerSettings,
     pub(crate) ty_version: Option<String>,
@@ -3209,7 +2862,6 @@ pub(crate) struct AuditSettings {
     pub(crate) frozen: Option<FrozenSource>,
     pub(crate) python_version: Option<PythonVersion>,
     pub(crate) python_platform: Option<TargetTriple>,
-    pub(crate) install_mirrors: PythonInstallMirrors,
     pub(crate) settings: ResolverSettings,
     pub(crate) output_format: AuditOutputFormat,
     pub(crate) service_format: VulnerabilityServiceFormat,
@@ -4171,7 +3823,6 @@ pub(crate) struct BuildSettings {
     pub(crate) build_constraints_from_workspace: Vec<Requirement>,
     pub(crate) hash_checking: Option<HashCheckingMode>,
     pub(crate) python: Option<String>,
-    pub(crate) install_mirrors: PythonInstallMirrors,
     pub(crate) refresh: Refresh,
     pub(crate) settings: ResolverSettings,
 }
@@ -4668,7 +4319,6 @@ impl From<ResolverInstallerOptions> for ResolverInstallerSettings {
 pub(crate) struct PipSettings {
     pub(crate) index_locations: IndexLocations,
     pub(crate) python: Option<String>,
-    pub(crate) install_mirrors: PythonInstallMirrors,
     pub(crate) system: bool,
     pub(crate) extras: ExtrasSpecification,
     pub(crate) groups: Vec<PipGroupName>,
@@ -5282,14 +4932,6 @@ impl AuthLoginSettings {
     }
 }
 
-// Environment variables that are not exposed as CLI arguments.
-mod env {
-    use uv_static::EnvVars;
-    pub(super) const UV_PYTHON_DOWNLOADS: (&str, &str) = (
-        EnvVars::UV_PYTHON_DOWNLOADS,
-        "one of 'auto', 'true', 'manual', 'never', or 'false'",
-    );
-}
 
 /// Attempt to load and parse an environment variable with the given name.
 ///

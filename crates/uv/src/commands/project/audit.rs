@@ -36,7 +36,7 @@ use uv_distribution_types::{IndexCapabilities, IndexUrl};
 use uv_fs::{CWD, find_git_repository_root, relative_to};
 use uv_normalize::{DefaultExtras, DefaultGroups};
 use uv_preview::{Preview, PreviewFeature};
-use uv_python::{ConfigDiscovery, PythonDownloads, PythonPreference, PythonVersion};
+use uv_python::{ConfigDiscovery, PythonPreference, PythonVersion};
 use uv_redacted::DisplaySafeUrl;
 use uv_resolver::Lock;
 use uv_scripts::Pep723Script;
@@ -56,11 +56,9 @@ pub(crate) async fn audit(
     script: Option<Pep723Script>,
     python_version: Option<PythonVersion>,
     python_platform: Option<TargetTriple>,
-    install_mirrors: PythonInstallMirrors,
     settings: ResolverSettings,
     client_builder: BaseClientBuilder<'_>,
     python_preference: PythonPreference,
-    python_downloads: PythonDownloads,
     concurrency: Concurrency,
     config_discovery: ConfigDiscovery,
     cache: Cache,
@@ -130,8 +128,6 @@ pub(crate) async fn audit(
                 None,
                 &client_builder,
                 python_preference,
-                python_downloads,
-                &install_mirrors,
                 false,
                 config_discovery,
                 Some(false),
@@ -155,8 +151,6 @@ pub(crate) async fn audit(
                     workspace_python,
                     &client_builder,
                     python_preference,
-                    python_downloads,
-                    &install_mirrors,
                     ProjectEnvironmentPolicy::Optional,
                     Some(false),
                     &cache,

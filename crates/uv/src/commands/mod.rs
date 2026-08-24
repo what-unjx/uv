@@ -45,15 +45,10 @@ pub(crate) use project::tree::tree;
 pub(crate) use project::upgrade::upgrade;
 pub(crate) use project::version::{project_version, self_version};
 pub(crate) use publish::publish;
-pub(crate) use python::dir::dir as python_dir;
 pub(crate) use python::find::find as python_find;
 pub(crate) use python::find::find_script as python_find_script;
-pub(crate) use python::install::install as python_install;
-pub(crate) use python::install::{PythonUpgrade, PythonUpgradeSource};
 pub(crate) use python::list::list as python_list;
 pub(crate) use python::pin::pin as python_pin;
-pub(crate) use python::uninstall::uninstall as python_uninstall;
-pub(crate) use python::update_shell::update_shell as python_update_shell;
 #[cfg(feature = "self-update")]
 pub(crate) use self_update::self_update;
 pub(crate) use tool::audit::audit as tool_audit;

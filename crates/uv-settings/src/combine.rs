@@ -13,7 +13,7 @@ use uv_distribution_types::{
 };
 use uv_install_wheel::LinkMode;
 use uv_pypi_types::{SchemaConflicts, SupportedEnvironments};
-use uv_python::{PythonDownloads, PythonPreference, PythonVersion};
+use uv_python::{PythonPreference, PythonVersion};
 use uv_redacted::DisplaySafeUrl;
 use uv_resolver::{
     AnnotationStyle, ExcludeNewer, ExcludeNewerOverride, ExcludeNewerPackage, ExcludeNewerValue,
@@ -112,7 +112,6 @@ impl_combine_or!(PipIndex);
 impl_combine_or!(PrereleaseMode);
 impl_combine_or!(PreviewOption);
 impl_combine_or!(ProxyUrl);
-impl_combine_or!(PythonDownloads);
 impl_combine_or!(PythonPreference);
 impl_combine_or!(PythonVersion);
 impl_combine_or!(RequiredVersion);

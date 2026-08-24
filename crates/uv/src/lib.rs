@@ -873,7 +873,6 @@ async fn run_with_workspace_cache(
                 args.settings.install_mirrors,
                 args.settings.python_version,
                 args.settings.python_platform,
-                globals.python_downloads,
                 args.settings.universal,
                 args.settings.exclude_newer,
                 args.settings.sources,
@@ -961,7 +960,6 @@ async fn run_with_workspace_cache(
                 args.settings.build_options,
                 args.settings.python_version,
                 args.settings.python_platform,
-                globals.python_downloads,
                 args.settings.install_mirrors,
                 args.settings.strict,
                 args.settings.exclude_newer,
@@ -1124,7 +1122,6 @@ async fn run_with_workspace_cache(
                 args.modifications,
                 args.settings.python_version,
                 args.settings.python_platform,
-                globals.python_downloads,
                 args.settings.install_mirrors,
                 args.settings.strict,
                 args.settings.exclude_newer,
@@ -1394,12 +1391,10 @@ async fn run_with_workspace_cache(
                 args.build_constraints_from_workspace,
                 args.hash_checking,
                 args.python,
-                args.install_mirrors,
                 &args.settings,
                 &client_builder.subcommand(vec!["build".to_owned()]),
                 config_discovery,
                 globals.python_preference,
-                globals.python_downloads,
                 globals.concurrency,
                 &cache,
                 &workspace_cache,
@@ -1459,7 +1454,6 @@ async fn run_with_workspace_cache(
                 python_request,
                 args.settings.install_mirrors,
                 globals.python_preference,
-                globals.python_downloads,
                 args.settings.link_mode,
                 &args.settings.index_locations,
                 args.settings.index_strategy,
@@ -1649,14 +1643,12 @@ async fn run_with_workspace_cache(
                 args.lfs,
                 args.python,
                 args.python_platform,
-                args.install_mirrors,
                 args.options,
                 args.settings,
                 client_builder,
                 invocation_source,
                 args.isolated,
                 globals.python_preference,
-                globals.python_downloads,
                 globals.installer_metadata,
                 globals.concurrency,
                 cache,
@@ -1751,13 +1743,11 @@ async fn run_with_workspace_cache(
                 args.lfs,
                 args.python,
                 args.python_platform,
-                args.install_mirrors,
                 args.force,
                 args.options,
                 args.settings,
                 client_builder.subcommand(vec!["tool".to_owned(), "install".to_owned()]),
                 globals.python_preference,
-                globals.python_downloads,
                 globals.installer_metadata,
                 globals.concurrency,
                 config_discovery,
@@ -1836,12 +1826,10 @@ async fn run_with_workspace_cache(
                 args.names,
                 args.python,
                 args.python_platform,
-                args.install_mirrors,
                 args.args,
                 args.filesystem,
                 client_builder.subcommand(vec!["tool".to_owned(), "upgrade".to_owned()]),
                 globals.python_preference,
-                globals.python_downloads,
                 globals.installer_metadata,
                 globals.concurrency,
                 &cache,
@@ -1888,100 +1876,16 @@ async fn run_with_workspace_cache(
 
             commands::python_list(
                 args.request,
-                args.kinds,
                 args.all_versions,
-                args.all_platforms,
-                args.all_arches,
-                args.show_urls,
                 args.output_format,
-                args.python_downloads_json_url,
                 args.python_install_mirror,
                 args.pypy_install_mirror,
                 globals.python_preference,
-                globals.python_downloads,
                 &client_builder.subcommand(vec!["python".to_owned(), "list".to_owned()]),
                 &cache,
                 printer,
             )
             .await
-        }
-        Commands::Python(PythonNamespace {
-            command: PythonCommand::Install(args),
-        }) => {
-            // Resolve the settings from the command-line arguments and workspace configuration.
-            let args = settings::PythonInstallSettings::resolve(args, filesystem, environment)?;
-            show_settings!(args);
-
-            // Initialize the cache.
-            let cache = cache.init().await?;
-
-            commands::python_install(
-                &project_dir,
-                args.install_dir,
-                args.targets,
-                args.reinstall,
-                args.upgrade,
-                args.bin,
-                args.registry,
-                args.force,
-                args.python_install_mirror,
-                args.pypy_install_mirror,
-                args.python_downloads_json_url,
-                client_builder.subcommand(vec!["python".to_owned(), "install".to_owned()]),
-                args.default,
-                globals.python_downloads,
-                config_discovery,
-                args.compile_bytecode,
-                &globals.concurrency,
-                &cache,
-                globals.preview,
-                printer,
-            )
-            .await
-        }
-        Commands::Python(PythonNamespace {
-            command: PythonCommand::Upgrade(args),
-        }) => {
-            // Resolve the settings from the command-line arguments and workspace configuration.
-            let args = settings::PythonUpgradeSettings::resolve(args, filesystem, environment)?;
-            show_settings!(args);
-            let upgrade = commands::PythonUpgrade::Enabled(commands::PythonUpgradeSource::Upgrade);
-
-            // Initialize the cache.
-            let cache = cache.init().await?;
-
-            commands::python_install(
-                &project_dir,
-                args.install_dir,
-                args.targets,
-                args.reinstall,
-                upgrade,
-                args.bin,
-                args.registry,
-                args.force,
-                args.python_install_mirror,
-                args.pypy_install_mirror,
-                args.python_downloads_json_url,
-                client_builder.subcommand(vec!["python".to_owned(), "upgrade".to_owned()]),
-                args.default,
-                globals.python_downloads,
-                config_discovery,
-                args.compile_bytecode,
-                &globals.concurrency,
-                &cache,
-                globals.preview,
-                printer,
-            )
-            .await
-        }
-        Commands::Python(PythonNamespace {
-            command: PythonCommand::Uninstall(args),
-        }) => {
-            // Resolve the settings from the command-line arguments and workspace configuration.
-            let args = settings::PythonUninstallSettings::resolve(args, filesystem);
-            show_settings!(args);
-
-            commands::python_uninstall(args.install_dir, args.targets, args.all, printer).await
         }
         Commands::Python(PythonNamespace {
             command: PythonCommand::Find(args),
@@ -1997,10 +1901,8 @@ async fn run_with_workspace_cache(
                     (&script).into(),
                     args.show_version,
                     args.resolve_links,
-                    // TODO(zsol): is this the right thing to do here?
                     &client_builder.subcommand(vec!["python".to_owned(), "find".to_owned()]),
                     globals.python_preference,
-                    globals.python_downloads,
                     config_discovery,
                     &cache,
                     printer,
@@ -2016,7 +1918,6 @@ async fn run_with_workspace_cache(
                     args.system,
                     config_discovery,
                     globals.python_preference,
-                    args.python_downloads_json_url.as_deref(),
                     &client_builder.subcommand(vec!["python".to_owned(), "find".to_owned()]),
                     &cache,
                     &workspace_cache,
@@ -2039,33 +1940,15 @@ async fn run_with_workspace_cache(
                 args.request,
                 args.resolved,
                 globals.python_preference,
-                globals.python_downloads,
                 args.no_project,
                 args.global,
                 args.rm,
-                args.install_mirrors,
                 client_builder.subcommand(vec!["python".to_owned(), "pin".to_owned()]),
                 &cache,
                 &workspace_cache,
                 printer,
             ))
             .await
-        }
-        Commands::Python(PythonNamespace {
-            command: PythonCommand::Dir(args),
-        }) => {
-            // Resolve the settings from the command-line arguments and workspace configuration.
-            let args = settings::PythonDirSettings::resolve(args, filesystem);
-            show_settings!(args);
-
-            commands::python_dir(args.bin, printer)?;
-            Ok(ExitStatus::Success)
-        }
-        Commands::Python(PythonNamespace {
-            command: PythonCommand::UpdateShell,
-        }) => {
-            commands::python_update_shell(printer).await?;
-            Ok(ExitStatus::Success)
         }
         Commands::Publish(args) => {
             if args.skip_existing {
@@ -2150,13 +2033,11 @@ async fn run_with_workspace_cache(
                     args.sync,
                     args.active,
                     args.python,
-                    args.install_mirrors,
                     args.malware_settings,
                     args.settings,
                     client_builder.subcommand(vec!["workspace".to_owned(), "metadata".to_owned()]),
                     script,
                     globals.python_preference,
-                    globals.python_downloads,
                     globals.concurrency,
                     config_discovery,
                     &cache,
@@ -2338,11 +2219,9 @@ async fn run_project(
                 args.author_from,
                 args.pin_python,
                 args.python,
-                args.install_mirrors,
                 args.no_workspace,
                 &client_builder.subcommand(vec!["init".to_owned()]),
                 globals.python_preference,
-                globals.python_downloads,
                 config_discovery,
                 &cache,
                 printer,
@@ -2403,11 +2282,9 @@ async fn run_project(
                 args.modifications,
                 args.python,
                 args.python_platform,
-                args.install_mirrors,
                 args.settings,
                 client_builder.subcommand(vec!["run".to_owned()]),
                 globals.python_preference,
-                globals.python_downloads,
                 globals.installer_metadata,
                 globals.concurrency,
                 cache,
@@ -2461,9 +2338,7 @@ async fn run_project(
                 args.modifications,
                 args.python,
                 args.python_platform,
-                args.install_mirrors,
                 globals.python_preference,
-                globals.python_downloads,
                 args.settings,
                 client_builder.subcommand(vec!["sync".to_owned()]),
                 script,
@@ -2516,12 +2391,10 @@ async fn run_project(
                 args.dry_run,
                 args.refresh,
                 args.python,
-                args.install_mirrors,
                 args.settings,
                 client_builder.subcommand(vec!["lock".to_owned()]),
                 script,
                 globals.python_preference,
-                globals.python_downloads,
                 globals.concurrency,
                 config_discovery,
                 &cache,
@@ -2546,11 +2419,9 @@ async fn run_project(
                 project_dir,
                 args.packages,
                 args.exclude,
-                args.install_mirrors,
                 args.settings,
                 client_builder.subcommand(vec!["upgrade".to_owned()]),
                 globals.python_preference,
-                globals.python_downloads,
                 globals.concurrency,
                 config_discovery,
                 &cache,
@@ -2679,12 +2550,10 @@ async fn run_project(
                 args.package,
                 args.python,
                 args.workspace,
-                args.install_mirrors,
                 args.settings,
                 client_builder.subcommand(vec!["add".to_owned()]),
                 script,
                 globals.python_preference,
-                globals.python_downloads,
                 globals.installer_metadata,
                 globals.concurrency,
                 config_discovery,
@@ -2729,12 +2598,10 @@ async fn run_project(
                 args.dependency_type,
                 args.package,
                 args.python,
-                args.install_mirrors,
                 args.settings,
                 client_builder.subcommand(vec!["remove".to_owned()]),
                 script,
                 globals.python_preference,
-                globals.python_downloads,
                 globals.installer_metadata,
                 globals.concurrency,
                 config_discovery,
@@ -2781,11 +2648,9 @@ async fn run_project(
                 args.active,
                 args.no_sync,
                 args.python,
-                args.install_mirrors,
                 args.settings,
                 client_builder.subcommand(vec!["version".to_owned()]),
                 globals.python_preference,
-                globals.python_downloads,
                 globals.installer_metadata,
                 globals.concurrency,
                 config_discovery,
@@ -2829,12 +2694,10 @@ async fn run_project(
                 args.python_version,
                 args.python_platform,
                 args.python,
-                args.install_mirrors,
                 args.resolver,
                 &client_builder.subcommand(vec!["tree".to_owned()]),
                 script,
                 globals.python_preference,
-                globals.python_downloads,
                 globals.concurrency,
                 config_discovery,
                 &cache,
@@ -2879,11 +2742,9 @@ async fn run_project(
                 args.include_find_links,
                 script,
                 args.python,
-                args.install_mirrors,
                 args.settings,
                 client_builder.subcommand(vec!["export".to_owned()]),
                 globals.python_preference,
-                globals.python_downloads,
                 globals.concurrency,
                 config_discovery,
                 globals.quiet > 0,
@@ -2957,7 +2818,6 @@ async fn run_project(
                 args.extras,
                 args.groups,
                 args.python,
-                args.install_mirrors,
                 args.settings,
                 args.ty_version,
                 args.show_version,
@@ -2965,7 +2825,6 @@ async fn run_project(
                 script,
                 client_builder.subcommand(vec!["check".to_owned()]),
                 globals.python_preference,
-                globals.python_downloads,
                 globals.installer_metadata,
                 globals.concurrency,
                 &cache,
@@ -3002,11 +2861,9 @@ async fn run_project(
                 script,
                 args.python_version,
                 args.python_platform,
-                args.install_mirrors,
                 args.settings,
                 client_builder.subcommand(vec!["audit".to_owned()]),
                 globals.python_preference,
-                globals.python_downloads,
                 globals.concurrency,
                 config_discovery,
                 cache,

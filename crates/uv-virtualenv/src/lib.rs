@@ -18,8 +18,6 @@ pub enum Error {
         "Could not find a suitable Python executable for the virtual environment based on the interpreter: {0}"
     )]
     NotFound(String),
-    #[error(transparent)]
-    Python(#[from] uv_python::managed::Error),
     #[error("A {name} already exists at: {}", path.user_display())]
     Exists {
         /// The type of environment (e.g., "virtual environment" or "directory").
@@ -61,7 +59,6 @@ pub fn create_venv(
     on_existing: OnExisting,
     relocatable: bool,
     seed: Seed,
-    upgradeable: bool,
 ) -> Result<PythonEnvironment, Error> {
     // Create the virtualenv at the given location.
     let virtualenv = virtualenv::create(
@@ -71,7 +68,6 @@ pub fn create_venv(
         on_existing,
         relocatable,
         seed,
-        upgradeable,
     )?;
 
     // Create the corresponding `PythonEnvironment`.

@@ -321,15 +321,7 @@ impl CachedEnvironment {
 
         // Create the environment in the cache, then relocate it to its content-addressed location.
         let temp_dir = cache.venv_dir()?;
-        let venv = uv_virtualenv::create_venv(
-            temp_dir.path(),
-            interpreter.clone(),
-            false,
-            uv_virtualenv::OnExisting::Remove(uv_virtualenv::RemovalReason::TemporaryEnvironment),
-            true,
-            uv_virtualenv::Seed::Disabled,
-            false,
-        )?;
+        let venv = uv_virtualenv::create_venv(temp_dir.path(), interpreter.clone(), false, uv_virtualenv::OnExisting::Remove(uv_virtualenv::RemovalReason::TemporaryEnvironment), true, uv_virtualenv::Seed::Disabled)?;
 
         sync_environment(
             venv,

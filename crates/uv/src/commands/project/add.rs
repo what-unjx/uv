@@ -32,7 +32,7 @@ use uv_normalize::{DEV_DEPENDENCIES, DefaultExtras, DefaultGroups, ExtraName, Pa
 use uv_pep508::{MarkerTree, VersionOrUrl};
 use uv_preview::Preview;
 use uv_python::{
-    ConfigDiscovery, Interpreter, PythonDownloads, PythonEnvironment, PythonPreference,
+    ConfigDiscovery, Interpreter, PythonEnvironment, PythonPreference,
     PythonRequest,
 };
 use uv_redacted::DisplaySafeUrl;
@@ -61,7 +61,7 @@ use crate::commands::project::{
     ProjectInterpreter, ScriptInterpreter, UniversalState, WorkspacePython,
     default_dependency_groups, init_script_python_requirement,
 };
-use crate::commands::reporters::{PythonDownloadReporter, ResolverReporter};
+use crate::commands::reporters::ResolverReporter;
 use crate::commands::{ExitStatus, ScriptPath, diagnostics, project};
 use crate::printer::Printer;
 use crate::settings::{FrozenSource, LockCheck, ResolverInstallerSettings};
@@ -98,12 +98,10 @@ pub(crate) async fn add(
     package: Option<PackageName>,
     python: Option<String>,
     workspace: Option<bool>,
-    install_mirrors: PythonInstallMirrors,
     settings: ResolverInstallerSettings,
     client_builder: BaseClientBuilder<'_>,
     script: Option<ScriptPath>,
     python_preference: PythonPreference,
-    python_downloads: PythonDownloads,
     installer_metadata: bool,
     concurrency: Concurrency,
     config_discovery: ConfigDiscovery,
@@ -136,8 +134,6 @@ pub(crate) async fn add(
             | RequirementsSource::EnvironmentYml(_) => {}
         }
     }
-
-    let reporter = PythonDownloadReporter::single(printer);
 
     // Determine what defaults/extras we're explicitly enabling
     let (extras, groups) = match &dependency_type {
@@ -197,15 +193,11 @@ pub(crate) async fn add(
             ScriptPath::Path(path) => {
                 let requires_python = init_script_python_requirement(
                     python.as_deref(),
-                    &install_mirrors,
                     project_dir,
                     false,
                     python_preference,
-                    python_downloads,
                     config_discovery,
-                    &client_builder,
                     cache,
-                    &reporter,
                 )
                 .await?;
                 Pep723Script::init(&path, requires_python.specifiers()).await?
@@ -221,8 +213,6 @@ pub(crate) async fn add(
             python.as_deref().map(PythonRequest::parse),
             &client_builder,
             python_preference,
-            python_downloads,
-            &install_mirrors,
             false,
             config_discovery,
             active,
@@ -296,8 +286,6 @@ pub(crate) async fn add(
                 workspace_python,
                 &client_builder,
                 python_preference,
-                python_downloads,
-                &install_mirrors,
                 ProjectEnvironmentPolicy::Optional,
                 active,
                 cache,
@@ -313,10 +301,8 @@ pub(crate) async fn add(
                 project.workspace(),
                 &defaulted_groups,
                 python.as_deref().map(PythonRequest::parse),
-                &install_mirrors,
                 &client_builder,
                 python_preference,
-                python_downloads,
                 no_sync,
                 config_discovery,
                 active,

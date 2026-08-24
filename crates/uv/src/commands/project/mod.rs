@@ -32,10 +32,9 @@ use uv_pep440::{TildeVersionSpecifier, Version, VersionSpecifiers};
 use uv_pep508::MarkerTreeContents;
 use uv_preview::{Preview, PreviewFeature};
 use uv_pypi_types::{ConflictItem, ConflictKind, ConflictSet, Conflicts};
-use uv_python::managed::{ManagedPythonInstallation, PythonMinorVersionLink};
 use uv_python::{
     BrokenLink, ConfigDiscovery, EnvironmentPreference, Interpreter, InvalidEnvironmentKind,
-    LenientImplementationName, PythonDownloads, PythonEnvironment, PythonInstallation,
+    LenientImplementationName, PythonEnvironment, PythonInstallation,
     PythonPreference, PythonRequest, PythonSource, PythonVariant, PythonVersionFile,
     VersionFileDiscoveryOptions, VersionRequest,
 };
@@ -60,7 +59,7 @@ use uv_workspace::{ProjectEnvironmentSelection, RequiresPythonSources, Workspace
 use crate::commands::pip::loggers::{InstallLogger, ResolveLogger};
 use crate::commands::pip::operations::{Changelog, Modifications};
 use crate::commands::project::install_target::InstallTarget;
-use crate::commands::reporters::{PythonDownloadReporter, ResolverReporter};
+use crate::commands::reporters::ResolverReporter;
 use crate::commands::{capitalize, conjunction, pip};
 use crate::printer::Printer;
 use crate::settings::{
@@ -835,8 +834,6 @@ impl ScriptInterpreter {
         python_request: Option<PythonRequest>,
         client_builder: &BaseClientBuilder<'_>,
         python_preference: PythonPreference,
-        python_downloads: PythonDownloads,
-        install_mirrors: &PythonInstallMirrors,
         keep_incompatible: bool,
         config_discovery: ConfigDiscovery,
         active: Option<bool>,
@@ -877,22 +874,7 @@ impl ScriptInterpreter {
             }
         }
 
-        let reporter = PythonDownloadReporter::single(printer);
-
-        let interpreter = PythonInstallation::find_or_download(
-            python_request.as_ref(),
-            EnvironmentPreference::Any,
-            python_preference,
-            python_downloads,
-            client_builder,
-            cache,
-            Some(&reporter),
-            install_mirrors.python_install_mirror.as_deref(),
-            install_mirrors.pypy_install_mirror.as_deref(),
-            install_mirrors.python_downloads_json_url.as_deref(),
-        )
-        .await?
-        .into_interpreter();
+        let interpreter = PythonInstallation::find(python_request.as_ref().unwrap_or(&PythonRequest::Default), EnvironmentPreference::Any, python_preference, cache).into_interpreter();
 
         if let Err(err) = match requires_python {
             Some((requires_python, RequiresPythonSource::Project)) => {
@@ -1438,8 +1420,6 @@ impl ProjectInterpreter {
         workspace_python: WorkspacePython,
         client_builder: &BaseClientBuilder<'_>,
         python_preference: PythonPreference,
-        python_downloads: PythonDownloads,
-        install_mirrors: &PythonInstallMirrors,
         policy: ProjectEnvironmentPolicy,
         active: Option<bool>,
         cache: &Cache,
@@ -1509,22 +1489,8 @@ impl ProjectInterpreter {
             }
         }
 
-        let reporter = PythonDownloadReporter::single(printer);
-
         // Locate the Python interpreter to use in the environment.
-        let python = PythonInstallation::find_or_download(
-            python_request.as_ref(),
-            EnvironmentPreference::OnlySystem,
-            python_preference,
-            python_downloads,
-            client_builder,
-            cache,
-            Some(&reporter),
-            install_mirrors.python_install_mirror.as_deref(),
-            install_mirrors.pypy_install_mirror.as_deref(),
-            install_mirrors.python_downloads_json_url.as_deref(),
-        )
-        .await?;
+        let python = PythonInstallation::find(python_request.as_ref().unwrap_or(&PythonRequest::Default), EnvironmentPreference::OnlySystem, python_preference, cache);
 
         if centralized {
             let root =
@@ -1857,10 +1823,8 @@ impl ProjectEnvironment {
         workspace: &Workspace,
         groups: &DependencyGroupsWithDefaults,
         python: Option<PythonRequest>,
-        install_mirrors: &PythonInstallMirrors,
         client_builder: &BaseClientBuilder<'_>,
         python_preference: PythonPreference,
-        python_downloads: PythonDownloads,
         no_sync: bool,
         config_discovery: ConfigDiscovery,
         active: Option<bool>,
@@ -1899,8 +1863,6 @@ impl ProjectEnvironment {
             workspace_python,
             client_builder,
             python_preference,
-            python_downloads,
-            install_mirrors,
             if no_sync {
                 ProjectEnvironmentPolicy::Preserve
             } else {
@@ -1972,17 +1934,9 @@ impl ProjectEnvironment {
                 // Under `--dry-run`, avoid modifying the environment.
                 if dry_run.enabled() {
                     let temp_dir = cache.venv_dir()?;
-                    let environment = uv_virtualenv::create_venv(
-                        temp_dir.path(),
-                        interpreter,
-                        false,
-                        uv_virtualenv::OnExisting::Remove(
+                    let environment = uv_virtualenv::create_venv(temp_dir.path(), interpreter, false, uv_virtualenv::OnExisting::Remove(
                             uv_virtualenv::RemovalReason::ManagedEnvironment,
-                        ),
-                        uv_preview::is_enabled(PreviewFeature::RelocatableEnvsDefault),
-                        uv_virtualenv::Seed::Disabled,
-                        upgradeable,
-                    )?;
+                        ), uv_preview::is_enabled(PreviewFeature::RelocatableEnvsDefault), uv_virtualenv::Seed::Disabled)?;
                     return Ok(if replace_environment {
                         Self::WouldReplace(root, environment, temp_dir)
                     } else {
@@ -2032,17 +1986,9 @@ impl ProjectEnvironment {
                     )?;
                 }
 
-                let environment = uv_virtualenv::create_venv(
-                    &root,
-                    interpreter,
-                    false,
-                    uv_virtualenv::OnExisting::Remove(
+                let environment = uv_virtualenv::create_venv(&root, interpreter, false, uv_virtualenv::OnExisting::Remove(
                         uv_virtualenv::RemovalReason::ManagedEnvironment,
-                    ),
-                    uv_preview::is_enabled(PreviewFeature::RelocatableEnvsDefault),
-                    uv_virtualenv::Seed::Disabled,
-                    upgradeable,
-                )?;
+                    ), uv_preview::is_enabled(PreviewFeature::RelocatableEnvsDefault), uv_virtualenv::Seed::Disabled)?;
 
                 if centralized {
                     update_project_environment_link(&environment, workspace, link_error_reporting);
@@ -2128,8 +2074,6 @@ impl ScriptEnvironment {
         python_request: Option<PythonRequest>,
         client_builder: &BaseClientBuilder<'_>,
         python_preference: PythonPreference,
-        python_downloads: PythonDownloads,
-        install_mirrors: &PythonInstallMirrors,
         no_sync: bool,
         config_discovery: ConfigDiscovery,
         active: Option<bool>,
@@ -2154,8 +2098,6 @@ impl ScriptEnvironment {
             python_request,
             client_builder,
             python_preference,
-            python_downloads,
-            install_mirrors,
             no_sync,
             config_discovery,
             active,
@@ -2174,17 +2116,9 @@ impl ScriptEnvironment {
                 // Under `--dry-run`, avoid modifying the environment.
                 if dry_run.enabled() {
                     let temp_dir = cache.venv_dir()?;
-                    let environment = uv_virtualenv::create_venv(
-                        temp_dir.path(),
-                        interpreter,
-                        false,
-                        uv_virtualenv::OnExisting::Remove(
+                    let environment = uv_virtualenv::create_venv(temp_dir.path(), interpreter, false, uv_virtualenv::OnExisting::Remove(
                             uv_virtualenv::RemovalReason::ManagedEnvironment,
-                        ),
-                        false,
-                        uv_virtualenv::Seed::Disabled,
-                        upgradeable,
-                    )?;
+                        ), false, uv_virtualenv::Seed::Disabled)?;
                     return Ok(if root.exists() {
                         Self::WouldReplace(root, environment, temp_dir)
                     } else {
@@ -2210,17 +2144,9 @@ impl ScriptEnvironment {
                     root.user_display().cyan()
                 );
 
-                let environment = uv_virtualenv::create_venv(
-                    &root,
-                    interpreter,
-                    false,
-                    uv_virtualenv::OnExisting::Remove(
+                let environment = uv_virtualenv::create_venv(&root, interpreter, false, uv_virtualenv::OnExisting::Remove(
                         uv_virtualenv::RemovalReason::ManagedEnvironment,
-                    ),
-                    false,
-                    uv_virtualenv::Seed::Disabled,
-                    upgradeable,
-                )?;
+                    ), false, uv_virtualenv::Seed::Disabled)?;
 
                 Ok(if replaced {
                     Self::Replaced(environment)
@@ -3176,15 +3102,11 @@ pub(crate) async fn update_environment(
 /// Determine the [`RequiresPython`] requirement for a new PEP 723 script.
 pub(crate) async fn init_script_python_requirement(
     python: Option<&str>,
-    install_mirrors: &PythonInstallMirrors,
     directory: &Path,
     no_pin_python: bool,
     python_preference: PythonPreference,
-    python_downloads: PythonDownloads,
     config_discovery: ConfigDiscovery,
-    client_builder: &BaseClientBuilder<'_>,
     cache: &Cache,
-    reporter: &PythonDownloadReporter,
 ) -> anyhow::Result<RequiresPython> {
     let python_request = if let Some(request) = python {
         // (1) Explicit request from user
@@ -3205,20 +3127,7 @@ pub(crate) async fn init_script_python_requirement(
         None
     };
 
-    let interpreter = PythonInstallation::find_or_download(
-        python_request.as_ref(),
-        EnvironmentPreference::Any,
-        python_preference,
-        python_downloads,
-        client_builder,
-        cache,
-        Some(reporter),
-        install_mirrors.python_install_mirror.as_deref(),
-        install_mirrors.pypy_install_mirror.as_deref(),
-        install_mirrors.python_downloads_json_url.as_deref(),
-    )
-    .await?
-    .into_interpreter();
+    let interpreter = PythonInstallation::find(python_request.as_ref().unwrap_or(&PythonRequest::Default), EnvironmentPreference::Any, python_preference, cache).into_interpreter();
 
     Ok(RequiresPython::greater_than_equal_version(
         &interpreter.python_minor_version(),

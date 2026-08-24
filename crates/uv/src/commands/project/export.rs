@@ -17,7 +17,7 @@ use uv_configuration::{
 use uv_distribution_types::Verbatim;
 use uv_normalize::{DefaultExtras, DefaultGroups, PackageName};
 use uv_preview::Preview;
-use uv_python::{ConfigDiscovery, PythonDownloads, PythonPreference, PythonRequest};
+use uv_python::{ConfigDiscovery, PythonPreference, PythonRequest};
 use uv_requirements::is_pylock_toml;
 use uv_resolver::{PylockToml, RequirementsTxtExport, cyclonedx_json};
 use uv_scripts::Pep723Script;
@@ -78,11 +78,9 @@ pub(crate) async fn export(
     include_find_links: bool,
     script: Option<Pep723Script>,
     python: Option<String>,
-    install_mirrors: PythonInstallMirrors,
     settings: ResolverSettings,
     client_builder: BaseClientBuilder<'_>,
     python_preference: PythonPreference,
-    python_downloads: PythonDownloads,
     concurrency: Concurrency,
     config_discovery: ConfigDiscovery,
     quiet: bool,
@@ -171,8 +169,6 @@ pub(crate) async fn export(
                 python.as_deref().map(PythonRequest::parse),
                 &client_builder,
                 python_preference,
-                python_downloads,
-                &install_mirrors,
                 false,
                 config_discovery,
                 Some(false),
@@ -196,8 +192,6 @@ pub(crate) async fn export(
                     workspace_python,
                     &client_builder,
                     python_preference,
-                    python_downloads,
-                    &install_mirrors,
                     ProjectEnvironmentPolicy::Optional,
                     Some(false),
                     cache,
