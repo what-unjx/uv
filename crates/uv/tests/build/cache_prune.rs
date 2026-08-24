@@ -163,13 +163,11 @@ fn prune_cached_env() {
             r"\[CACHE_DIR\](\\|\/)(.*?)(\\|\/).*",
             "[CACHE_DIR]/$2/[ENTRY]",
         ));
-    let tool_dir = context.temp_dir.child("tools");
     let bin_dir = context.temp_dir.child("bin");
 
     uv_snapshot!(context.filters(), context.tool_run()
         .arg("pytest@8.0.0")
         .arg("--version")
-        .env(EnvVars::UV_TOOL_DIR, tool_dir.as_os_str())
         .env(EnvVars::XDG_BIN_HOME, bin_dir.as_os_str()), @"
     exit_code: 0 (success)
     ----- stdout -----

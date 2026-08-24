@@ -1,6 +1,8 @@
 use std::borrow::Cow;
+use std::env;
 use std::fmt;
 use std::hash::{Hash, Hasher};
+use std::path::PathBuf;
 use std::str::FromStr;
 
 use indexmap::IndexMap;
@@ -8,6 +10,7 @@ use ref_cast::RefCast;
 use reqwest_retry::policies::ExponentialBackoff;
 use tracing::{debug, info};
 use uv_fs::Simplified;
+use uv_static::EnvVars;
 use uv_warnings::warn_user;
 
 use uv_cache::Cache;
@@ -324,7 +327,11 @@ impl PythonInstallation {
         python_install_mirror: Option<&str>,
         pypy_install_mirror: Option<&str>,
     ) -> Result<Self, Error> {
-        let installations = ManagedPythonInstallations::from_settings(None, None)?.init()?;
+        // [第3次修正] 收敛到 UV_HOME：从环境变量读取 uv_home 后传入
+        let uv_home = env::var_os(EnvVars::UV_HOME)
+            .filter(|s| !s.is_empty())
+            .map(PathBuf::from);
+        let installations = ManagedPythonInstallations::from_settings(None, uv_home)?.init()?;
         let installations_dir = installations.root();
         let scratch_dir = installations.scratch();
         let _lock = installations.lock().await?;

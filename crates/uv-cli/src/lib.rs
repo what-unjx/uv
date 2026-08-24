@@ -921,14 +921,13 @@ pub enum CacheCommand {
     Prune(PruneArgs),
     /// Show the cache directory.
     ///
-    /// By default, the cache is stored in `$XDG_CACHE_HOME/uv` or `$HOME/.cache/uv` on Unix and
-    /// `%LOCALAPPDATA%\uv\cache` on Windows.
+    /// By default, the cache is stored in `UV_HOME/cache`.
     ///
     /// When `--no-cache` is used, the cache is stored in a temporary directory and discarded when
     /// the process exits.
     ///
-    /// An alternative cache directory may be specified via the `cache-dir` setting, the
-    /// `--cache-dir` option, or the `$UV_CACHE_DIR` environment variable.
+    /// An alternative cache directory may be specified via the `cache-dir` setting or the
+    /// `--cache-dir` option.
     ///
     /// Note that it is important for performance for the cache directory to be located on the same
     /// file system as the Python environment uv is operating on.
@@ -5321,11 +5320,7 @@ pub enum AuthCommand {
     Token(AuthTokenArgs),
     /// Show the path to the uv credentials directory.
     ///
-    /// By default, credentials are stored in the uv data directory at
-    /// `$XDG_DATA_HOME/uv/credentials` or `$HOME/.local/share/uv/credentials` on Unix and
-    /// `%APPDATA%\uv\data\credentials` on Windows.
-    ///
-    /// The credentials directory may be overridden with `$UV_CREDENTIALS_DIR`.
+    /// By default, credentials are stored in `UV_HOME/data/credentials`.
     ///
     /// Credentials are only stored in this directory when the plaintext backend is used, as
     /// opposed to the native backend, which uses the system keyring.
@@ -5425,10 +5420,7 @@ pub enum ToolCommand {
     ///
     /// The tools directory is used to store environments and metadata for installed tools.
     ///
-    /// By default, tools are stored in the uv data directory at `$XDG_DATA_HOME/uv/tools` or
-    /// `$HOME/.local/share/uv/tools` on Unix and `%APPDATA%\uv\data\tools` on Windows.
-    ///
-    /// The tool installation directory may be overridden with `$UV_TOOL_DIR`.
+    /// By default, tools are stored in `UV_HOME/data/tools`.
     ///
     /// To instead view the directory uv installs executables into, use the `--bin` flag.
     Dir(ToolDirArgs),
@@ -5872,13 +5864,7 @@ pub struct ToolDirArgs {
     /// By default, `uv tool dir` shows the directory into which the tool Python environments
     /// themselves are installed, rather than the directory containing the linked executables.
     ///
-    /// The tool executable directory is determined according to the XDG standard and is derived
-    /// from the following environment variables, in order of preference:
-    ///
-    /// - `$UV_TOOL_BIN_DIR`
-    /// - `$XDG_BIN_HOME`
-    /// - `$XDG_DATA_HOME/../bin`
-    /// - `$HOME/.local/bin`
+    /// The tool executable directory is `UV_HOME/bin`.
     #[arg(long, verbatim_doc_comment)]
     pub bin: bool,
 }
@@ -6104,14 +6090,9 @@ pub enum PythonCommand {
 
     /// Show the uv Python installation directory.
     ///
-    /// By default, Python installations are stored in the uv data directory at
-    /// `$XDG_DATA_HOME/uv/python` or `$HOME/.local/share/uv/python` on Unix and
-    /// `%APPDATA%\uv\data\python` on Windows.
-    ///
-    /// The Python installation directory may be overridden with `$UV_PYTHON_INSTALL_DIR`.
+    /// By default, Python installations are stored in `UV_HOME/data/python`.
     ///
     /// To view the directory where uv installs Python executables instead, use the `--bin` flag.
-    /// The Python executable directory may be overridden with `$UV_PYTHON_BIN_DIR`.
     Dir(PythonDirArgs),
 
     /// Uninstall Python versions.
@@ -6125,8 +6106,8 @@ pub enum PythonCommand {
     /// If the shell configuration files already include a blurb to add the executable directory to
     /// the path, but the directory is not present on the `PATH`, uv will exit with an error.
     ///
-    /// The Python executable directory is determined according to the XDG standard and can be
-    /// retrieved with `uv python dir --bin`.
+    /// The Python executable directory is `UV_HOME/bin` and can be retrieved with
+    /// `uv python dir --bin`.
     #[command(alias = "ensurepath")]
     UpdateShell,
 }
@@ -6187,13 +6168,7 @@ pub struct PythonListArgs {
 pub struct PythonDirArgs {
     /// Show the directory into which `uv python` will install Python executables.
     ///
-    /// The Python executable directory is determined according to the XDG standard and is derived
-    /// from the following environment variables, in order of preference:
-    ///
-    /// - `$UV_PYTHON_BIN_DIR`
-    /// - `$XDG_BIN_HOME`
-    /// - `$XDG_DATA_HOME/../bin`
-    /// - `$HOME/.local/bin`
+    /// The Python executable directory is `UV_HOME/bin`.
     #[arg(long, verbatim_doc_comment)]
     pub bin: bool,
 }
@@ -6232,12 +6207,12 @@ pub struct PythonInstallCompileBytecodeArgs {
 pub struct PythonInstallArgs {
     /// The directory to store the Python installation in.
     ///
-    /// If provided, `UV_PYTHON_INSTALL_DIR` will need to be set for subsequent operations for uv to
-    /// discover the Python installation.
+    /// If provided, the same directory must be passed for subsequent operations for uv to discover
+    /// the Python installation.
     ///
     /// See `uv python dir` to view the current Python installation directory. Defaults to
-    /// `~/.local/share/uv/python`.
-    #[arg(long, short, env = EnvVars::UV_PYTHON_INSTALL_DIR, value_hint = ValueHint::DirPath)]
+    /// `UV_HOME/data/python`.
+    #[arg(long, short, value_hint = ValueHint::DirPath)]
     pub install_dir: Option<PathBuf>,
 
     /// Install a Python executable into the `bin` directory.
@@ -6247,7 +6222,7 @@ pub struct PythonInstallArgs {
     ///
     /// This can also be set with `UV_PYTHON_INSTALL_BIN=1`.
     ///
-    /// See `UV_PYTHON_BIN_DIR` to customize the target directory.
+    /// The target directory is `UV_HOME/bin`.
     #[arg(long, overrides_with("no_bin"), hide = true)]
     pub bin: bool,
 
@@ -6369,12 +6344,12 @@ impl PythonInstallArgs {
 pub struct PythonUpgradeArgs {
     /// The directory Python installations are stored in.
     ///
-    /// If provided, `UV_PYTHON_INSTALL_DIR` will need to be set for subsequent operations for uv to
-    /// discover the Python installation.
+    /// If provided, the same directory must be passed for subsequent operations for uv to discover
+    /// the Python installation.
     ///
     /// See `uv python dir` to view the current Python installation directory. Defaults to
-    /// `~/.local/share/uv/python`.
-    #[arg(long, short, env = EnvVars::UV_PYTHON_INSTALL_DIR, value_hint = ValueHint::DirPath)]
+    /// `UV_HOME/data/python`.
+    #[arg(long, short, value_hint = ValueHint::DirPath)]
     pub install_dir: Option<PathBuf>,
 
     /// The Python minor version(s) to upgrade.
@@ -6431,7 +6406,7 @@ impl PythonUpgradeArgs {
 #[derive(Args)]
 pub struct PythonUninstallArgs {
     /// The directory where the Python was installed.
-    #[arg(long, short, env = EnvVars::UV_PYTHON_INSTALL_DIR, value_hint = ValueHint::DirPath)]
+    #[arg(long, short, value_hint = ValueHint::DirPath)]
     pub install_dir: Option<PathBuf>,
 
     /// The Python version(s) to uninstall.

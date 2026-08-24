@@ -67,21 +67,15 @@ impl EnvVars {
     ///
     /// When set, all storage subdirectories are created under this path:
     /// `cache/`, `data/tools/`, `data/python/`, `data/credentials/`, `bin/`.
-    /// Individual directory environment variables (`UV_CACHE_DIR`, `UV_TOOL_DIR`, etc.) are ignored when `UV_HOME` is set.
+    ///
+    /// This is the single source of truth for uv's storage layout; no other directory
+    /// environment variables exist. uv requires `UV_HOME` (or the `home` setting in `uv.toml`)
+    /// to be configured and errors if it is unset.
     ///
     /// [第1次试飞后修正]
     /// 新增：UV_HOME 统一存储根目录环境变量
     #[attr_added_in("0.0.0")]
     pub const UV_HOME: &'static str = "UV_HOME";
-
-    /// Equivalent to the `--cache-dir` command-line argument. If set, uv will use this
-    /// directory for caching instead of the default cache directory.
-    #[attr_added_in("0.0.5")]
-    pub const UV_CACHE_DIR: &'static str = "UV_CACHE_DIR";
-
-    /// The directory for storage of credentials when using a plain text backend.
-    #[attr_added_in("0.8.15")]
-    pub const UV_CREDENTIALS_DIR: &'static str = "UV_CREDENTIALS_DIR";
 
     /// Equivalent to the `--no-cache` command-line argument. If set, uv will not use the
     /// cache for any operations.
@@ -442,14 +436,6 @@ impl EnvVars {
     #[attr_added_in("0.2.28")]
     pub const UV_NO_PROGRESS: &'static str = "UV_NO_PROGRESS";
 
-    /// Specifies the directory where uv stores managed tools.
-    #[attr_added_in("0.2.16")]
-    pub const UV_TOOL_DIR: &'static str = "UV_TOOL_DIR";
-
-    /// Specifies the "bin" directory for installing tool executables.
-    #[attr_added_in("0.3.0")]
-    pub const UV_TOOL_BIN_DIR: &'static str = "UV_TOOL_BIN_DIR";
-
     /// Equivalent to the `--bare` argument for `uv init`. If set, uv will only create a
     /// `pyproject.toml`.
     #[attr_added_in("0.10.7")]
@@ -467,15 +453,7 @@ impl EnvVars {
     #[attr_added_in("0.4.4")]
     pub const UV_PROJECT_ENVIRONMENT: &'static str = "UV_PROJECT_ENVIRONMENT";
 
-    /// Specifies the directory to place links to installed, managed Python executables.
-    #[attr_added_in("0.4.29")]
-    pub const UV_PYTHON_BIN_DIR: &'static str = "UV_PYTHON_BIN_DIR";
-
-    /// Specifies the directory for storing managed Python installations.
-    #[attr_added_in("0.2.22")]
-    pub const UV_PYTHON_INSTALL_DIR: &'static str = "UV_PYTHON_INSTALL_DIR";
-
-    /// Whether to install the Python executable into the `UV_PYTHON_BIN_DIR` directory.
+    /// Whether to install the Python executable into the `bin` directory under `UV_HOME`.
     #[attr_added_in("0.8.0")]
     pub const UV_PYTHON_INSTALL_BIN: &'static str = "UV_PYTHON_INSTALL_BIN";
 
@@ -500,11 +478,6 @@ impl EnvVars {
     /// of Python than the ones hardcoded into this build of `uv`.
     #[attr_added_in("0.6.13")]
     pub const UV_PYTHON_DOWNLOADS_JSON_URL: &'static str = "UV_PYTHON_DOWNLOADS_JSON_URL";
-
-    /// Specifies the directory for caching the archives of managed Python installations before
-    /// installation.
-    #[attr_added_in("0.7.0")]
-    pub const UV_PYTHON_CACHE_DIR: &'static str = "UV_PYTHON_CACHE_DIR";
 
     /// Managed Python installations are downloaded from the Astral
     /// [`python-build-standalone`](https://github.com/astral-sh/python-build-standalone) project.

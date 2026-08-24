@@ -317,7 +317,11 @@ impl Interpreter {
             });
         }
 
-        let Ok(installations) = ManagedPythonInstallations::from_settings(None, None) else {
+        // [第3次修正] 收敛到 UV_HOME：从环境变量读取 uv_home 后传入
+        let uv_home = env::var_os(EnvVars::UV_HOME)
+            .filter(|s| !s.is_empty())
+            .map(PathBuf::from);
+        let Ok(installations) = ManagedPythonInstallations::from_settings(None, uv_home) else {
             return false;
         };
         let Ok(root) = installations.absolute_root() else {

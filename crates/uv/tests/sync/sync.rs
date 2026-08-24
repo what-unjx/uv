@@ -6910,7 +6910,7 @@ fn sync_active_project_environment_with_relative_managed_python_dir() -> Result<
 
     context
         .venv()
-        .env(EnvVars::UV_PYTHON_INSTALL_DIR, ".python-installs")
+        // [第3次修正] 托管 Python 目录固定为 UV_HOME/data/python
         .env(EnvVars::UV_PYTHON_PREFERENCE, "only-managed")
         .env(EnvVars::UV_PYTHON_DOWNLOADS, "automatic")
         .arg("foobar")
@@ -6919,13 +6919,13 @@ fn sync_active_project_environment_with_relative_managed_python_dir() -> Result<
 
     context
         .temp_dir
-        .child(".python-installs")
+        .child("data")
+        .child("python")
         .assert(predicate::path::is_dir());
 
     for _ in 0..2 {
         let assert = context
             .sync()
-            .env(EnvVars::UV_PYTHON_INSTALL_DIR, ".python-installs")
             .env(EnvVars::UV_PYTHON_PREFERENCE, "only-managed")
             .env(EnvVars::UV_PYTHON_DOWNLOADS, "automatic")
             .env(EnvVars::VIRTUAL_ENV, "foobar")

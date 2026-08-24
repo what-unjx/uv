@@ -1902,7 +1902,9 @@ fn path_with_trailing_space_gives_proper_error() {
     ));
     uv_snapshot!(context.filters(), std::process::Command::new(uv_test::get_bin!())
         .arg("venv")
-        .env(EnvVars::UV_CACHE_DIR, path_with_trailing_slash), @r###"
+        .arg("--cache-dir")
+        .arg(&path_with_trailing_slash)
+        .env(EnvVars::UV_HOME, context.temp_dir.as_os_str()), @r###"
     exit_code: 2 (failure)
     ----- stderr -----
     error: Failed to initialize cache at `[CACHE_DIR]/ `

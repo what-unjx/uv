@@ -11,7 +11,6 @@ use assert_fs::{
 };
 use indoc::indoc;
 use predicates::prelude::predicate;
-use tracing::debug;
 use uv_test::{LATEST_PYTHON_3_12, uv_snapshot};
 
 use uv_fs::Simplified;
@@ -2391,29 +2390,21 @@ fn python_find_prerelease() {
     ");
 }
 
-/// A duplicate of [`python_install`] with an isolated `UV_PYTHON_CACHE_DIR`.
+/// A duplicate of [`python_install`] with an isolated Python download cache.
+///
+/// The Python download cache is fixed to `UV_HOME/cache/python`.
 ///
 /// See also, [`python_install_no_cache`].
 #[test]
 fn python_install_cached() {
-    // Skip this test if the developer has set `UV_PYTHON_CACHE_DIR` locally since it's slow
-    if env::var_os(EnvVars::UV_PYTHON_CACHE_DIR).is_some() && env::var_os(EnvVars::CI).is_none() {
-        debug!("Skipping test because `UV_PYTHON_CACHE_DIR` is set");
-        return;
-    }
-
     let context = uv_test::test_context_with_versions!(&[])
         .with_filtered_python_keys()
         .with_filtered_exe_suffix()
         .with_managed_python_dirs()
         .with_filtered_latest_python_versions();
 
-    let python_cache = context.temp_dir.child("python-cache");
-
     // Install the latest version
-    uv_snapshot!(context.filters(), context
-        .python_install()
-        .env(EnvVars::UV_PYTHON_CACHE_DIR, python_cache.as_ref()), @"
+    uv_snapshot!(context.filters(), context.python_install(), @"
     exit_code: 0 (success)
     ----- stderr -----
     Installed Python 3.14.[LATEST] in [TIME]
@@ -2428,9 +2419,7 @@ fn python_install_cached() {
     bin_python.assert(predicate::path::exists());
 
     // Should be a no-op when already installed
-    uv_snapshot!(context.filters(), context
-        .python_install()
-        .env(EnvVars::UV_PYTHON_CACHE_DIR, python_cache.as_ref()), @"
+    uv_snapshot!(context.filters(), context.python_install(), @"
     exit_code: 0 (success)
     ----- stderr -----
     Python is already installed. Use `uv python install <request>` to install another version.
@@ -2445,10 +2434,7 @@ fn python_install_cached() {
     ");
 
     // The cached archive can be installed offline
-    uv_snapshot!(context.filters(), context
-        .python_install()
-        .arg("--offline")
-        .env(EnvVars::UV_PYTHON_CACHE_DIR, python_cache.as_ref()), @"
+    uv_snapshot!(context.filters(), context.python_install().arg("--offline"), @"
     exit_code: 0 (success)
     ----- stderr -----
     Installed Python 3.14.[LATEST] in [TIME]
@@ -2463,24 +2449,17 @@ fn python_install_cached() {
     uv_snapshot!(context.filters(), context
         .python_install()
         .arg("3.12")
-        .arg("--offline")
-        .env(EnvVars::UV_PYTHON_CACHE_DIR, python_cache.as_ref()), @"
+        .arg("--offline"), @"
     exit_code: 1 (failure)
     ----- stderr -----
     error: Failed to install cpython-3.12.[LATEST]-[PLATFORM]
-      Caused by: An offline Python installation was requested, but cpython-3.12.[PATCH]-[DATE]-[PLATFORM].tar.gz) is missing in python-cache
+      Caused by: An offline Python installation was requested, but cpython-3.12.[PATCH]-[DATE]-[PLATFORM].tar.gz) is missing in cache/python
     ");
 }
 
 /// Duplicate of [`python_install`] with the cache directory disabled.
 #[test]
 fn python_install_no_cache() {
-    // Skip this test if the developer has set `UV_PYTHON_CACHE_DIR` locally since it's slow
-    if env::var_os(EnvVars::UV_PYTHON_CACHE_DIR).is_some() && env::var_os(EnvVars::CI).is_none() {
-        debug!("Skipping test because `UV_PYTHON_CACHE_DIR` is set");
-        return;
-    }
-
     let context = uv_test::test_context_with_versions!(&[])
         .with_filtered_python_keys()
         .with_filtered_exe_suffix()

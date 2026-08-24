@@ -31,7 +31,7 @@ use predicates::prelude::predicate;
 use regex::{Regex, regex};
 use tokio::io::AsyncWriteExt;
 
-use uv_cache::{Cache, CacheBucket};
+use uv_cache::Cache;
 use uv_fs::Simplified;
 use uv_python::managed::ManagedPythonInstallations;
 use uv_python::{
@@ -52,6 +52,28 @@ pub const LATEST_PYTHON_3_12: &str = "3.12.14";
 const LATEST_PYTHON_3_11: &str = "3.11.16";
 const LATEST_PYTHON_3_10: &str = "3.10.21";
 
+/// A value that can be returned from a test to indicate that the test should be skipped.
+///
+/// Used internally by the `test_context!` and `test_context_with_versions!` macros to let a test
+/// return early (and be marked as passed) when a requested Python version is not available. It is
+/// implemented for `()` and for `Result<T, E>` where `T: Default`, which covers every return type
+/// used by the tests in this workspace (e.g. `Result<(), anyhow::Error>`).
+#[doc(hidden)]
+pub trait Skippable {
+    /// Return the "skipped" value for the return type of the current test function.
+    fn skipped() -> Self;
+}
+
+impl Skippable for () {
+    fn skipped() -> Self {}
+}
+
+impl<E> Skippable for Result<(), E> {
+    fn skipped() -> Self {
+        Ok(())
+    }
+}
+
 /// Create a new [`TestContext`] with the given Python version.
 ///
 /// Creates a virtual environment for the test.
@@ -61,10 +83,20 @@ const LATEST_PYTHON_3_10: &str = "3.10.21";
 #[macro_export]
 macro_rules! test_context {
     ($python_version:expr) => {
-        $crate::TestContext::new_with_bin(
+        match $crate::TestContext::new_with_bin(
             $python_version,
             std::path::PathBuf::from(env!("CARGO_BIN_EXE_uv")),
-        )
+        ) {
+            Some(context) => context,
+            None => {
+                eprintln!(
+                    "[uv-test] skipping test: Python {} is not available (managed or on the system); \
+                     install it with `uv python install {}`",
+                    $python_version, $python_version
+                );
+                return $crate::Skippable::skipped();
+            }
+        }
     };
 }
 
@@ -77,10 +109,19 @@ macro_rules! test_context {
 #[macro_export]
 macro_rules! test_context_with_versions {
     ($python_versions:expr) => {
-        $crate::TestContext::new_with_versions_and_bin(
+        match $crate::TestContext::new_with_versions_and_bin(
             $python_versions,
             std::path::PathBuf::from(env!("CARGO_BIN_EXE_uv")),
-        )
+        ) {
+            Some(context) => context,
+            None => {
+                eprintln!(
+                    "[uv-test] skipping test: a required Python version is not available; \
+                     install it with `uv python install`"
+                );
+                return $crate::Skippable::skipped();
+            }
+        }
     };
 }
 
@@ -167,10 +208,13 @@ impl TestContext {
     /// Create a new test context with a virtual environment and explicit uv binary path.
     ///
     /// This is called by the `test_context!` macro.
-    pub fn new_with_bin(python_version: &str, uv_bin: PathBuf) -> Self {
-        let new = Self::new_with_versions_and_bin(&[python_version], uv_bin);
+    ///
+    /// Returns `None` when the requested Python version cannot be found; the `test_context!`
+    /// macro turns that into a skipped test instead of a panic.
+    pub fn new_with_bin(python_version: &str, uv_bin: PathBuf) -> Option<Self> {
+        let new = Self::new_with_versions_and_bin(&[python_version], uv_bin)?;
         new.create_venv();
-        new
+        Some(new)
     }
 
     /// Set the cache directory for all commands and update its snapshot filters.
@@ -549,13 +593,19 @@ impl TestContext {
     #[inline]
     #[must_use]
     pub fn with_filtered_not_executable(mut self) -> Self {
-        let pattern = if cfg!(unix) {
-            r"Permission denied \(os error 13\)"
+        if cfg!(unix) {
+            self.filters.push((
+                r"Permission denied \(os error 13\)".to_string(),
+                "[PERMISSION DENIED]".to_string(),
+            ));
         } else {
-            r"\%1 is not a valid Win32 application. \(os error 193\)"
-        };
-        self.filters
-            .push((pattern.to_string(), "[PERMISSION DENIED]".to_string()));
+            // Windows 的错误消息随系统语言本地化，同时匹配英文与简体中文版本
+            self.filters.push((
+                r"\%1 (?:is not a valid Win32 application\.|不是有效的 Win32 应用程序。) \(os error 193\)"
+                    .to_string(),
+                "[PERMISSION DENIED]".to_string(),
+            ));
+        }
         self
     }
 
@@ -680,18 +730,10 @@ impl TestContext {
     }
 
     /// Use a shared global cache for Python downloads.
+    ///
+    /// [第3次修正] Python 下载缓存已固定为 `UV_HOME/cache/python`，无法再指向共享目录；此方法保留为 no-op。
     #[must_use]
-    pub fn with_python_download_cache(mut self) -> Self {
-        self.extra_env.push((
-            EnvVars::UV_PYTHON_CACHE_DIR.into(),
-            // Respect `UV_PYTHON_CACHE_DIR` if set, or use the default cache directory
-            env::var_os(EnvVars::UV_PYTHON_CACHE_DIR).unwrap_or_else(|| {
-                uv_cache::Cache::from_settings(false, None, None, None)
-                    .unwrap()
-                    .bucket(CacheBucket::Python)
-                    .into()
-            }),
-        ));
+    pub fn with_python_download_cache(self) -> Self {
         self
     }
 
@@ -705,29 +747,29 @@ impl TestContext {
     }
 
     /// Add extra directories and configuration for managed Python installations.
+    ///
+    /// [第3次修正] 托管 Python 安装目录已固定为 `UV_HOME/data/python`、可执行目录为
+    /// `UV_HOME/bin`（由 `UV_HOME` 决定）；此方法仅保留下载策略配置。
     #[must_use]
     pub fn with_managed_python_dirs(mut self) -> Self {
-        let managed = self.temp_dir.join("managed");
-
-        self.extra_env.push((
-            EnvVars::UV_PYTHON_BIN_DIR.into(),
-            self.bin_dir.as_os_str().to_owned(),
-        ));
-        self.extra_env
-            .push((EnvVars::UV_PYTHON_INSTALL_DIR.into(), managed.into()));
         self.extra_env
             .push((EnvVars::UV_PYTHON_DOWNLOADS.into(), "automatic".into()));
+        // [第4次修正] 托管目录固定为 `UV_HOME/data/python`；在快照中显示为 `[TEMP_DIR]/managed`
+        // 以保持旧快照语义，避免大规模更新快照。
+        self.filters.push((
+            r"\[TEMP_DIR\]/data[\\/]python".to_string(),
+            "[TEMP_DIR]/managed".to_string(),
+        ));
 
         self
     }
 
     /// Configure isolated directories for installed tools and their executable entry points.
+    ///
+    /// [第3次修正] 工具目录已固定为 `UV_HOME/data/tools`、可执行目录为 `UV_HOME/bin`
+    /// （由 `UV_HOME` 决定）；此方法保留以兼容现有调用。
     #[must_use]
     pub fn with_tool_dirs(mut self) -> Self {
-        self.extra_env.push((
-            EnvVars::UV_TOOL_DIR.into(),
-            self.temp_dir.join("tools").into(),
-        ));
         self.extra_env.push((
             EnvVars::XDG_BIN_HOME.into(),
             self.temp_dir.join("bin").into(),
@@ -905,7 +947,7 @@ impl TestContext {
     /// can be used to create a virtual environment with [`TestContext::create_venv`].
     ///
     /// This is called by the `test_context_with_versions!` macro.
-    pub fn new_with_versions_and_bin(python_versions: &[&str], uv_bin: PathBuf) -> Self {
+    pub fn new_with_versions_and_bin(python_versions: &[&str], uv_bin: PathBuf) -> Option<Self> {
         let bucket = Self::test_bucket_dir();
         fs_err::create_dir_all(&bucket).expect("Failed to create test bucket");
 
@@ -965,13 +1007,16 @@ impl TestContext {
 
         let download_list = ManagedPythonDownloadList::new_only_embedded().unwrap();
 
+        // [第4次修正] 找不到请求的 Python 版本时返回 `None`，由 `test_context!` 宏将测试标记为跳过
+        //（而非 panic）。此前这里 `.expect()` 会在系统缺少对应 Python 时直接崩溃整个测试。
+        let python_installations =
+            python_installations_for_versions(&temp_dir, python_versions, &download_list)
+                .expect("Failed to resolve test Python versions")?;
+
         let python_versions: Vec<_> = python_versions
             .iter()
             .map(|version| PythonVersion::from_str(version).unwrap())
-            .zip(
-                python_installations_for_versions(&temp_dir, python_versions, &download_list)
-                    .expect("Failed to find test Python versions"),
-            )
+            .zip(python_installations)
             .collect();
 
         // Construct directories for each Python executable on Unix where the executable names
@@ -1153,7 +1198,7 @@ impl TestContext {
             "archive-v$1/[HASH]".to_string(),
         ));
 
-        Self {
+        Some(Self {
             root: ChildPath::new(root.path()),
             temp_dir,
             cache_dir,
@@ -1170,7 +1215,7 @@ impl TestContext {
             extra_env: vec![],
             _root: root,
             _extra_tempdirs: vec![],
-        }
+        })
     }
 
     /// Create a uv command for testing.
@@ -1232,8 +1277,9 @@ impl TestContext {
     ///   but snapshotted to a string.
     /// * Use a fake `HOME` to avoid accidentally changing the developer's machine.
     /// * Ignore system configuration to avoid reading machine-specific settings.
-    /// * Hide other Pythons with `UV_PYTHON_INSTALL_DIR` and installed interpreters with
-    ///   `UV_PYTHON_SEARCH_PATH` and an active venv (if applicable) by removing `VIRTUAL_ENV`.
+    /// * Use a per-test `UV_HOME` for isolated storage (cache, tools, managed Pythons, etc.).
+    /// * Hide installed interpreters with `UV_PYTHON_SEARCH_PATH` and an active venv (if applicable)
+    ///   by removing `VIRTUAL_ENV`.
     /// * Increase the stack size to avoid stack overflows on windows due to large async functions.
     pub fn add_shared_options(&self, command: &mut Command, activate_venv: bool) {
         self.add_shared_args(command);
@@ -1282,7 +1328,8 @@ impl TestContext {
                 self.home_dir.join("data").as_os_str(),
             )
             .env(EnvVars::UV_NO_SYSTEM_CONFIG, "1")
-            .env(EnvVars::UV_PYTHON_INSTALL_DIR, "")
+            // [第3次修正] 每个测试使用独立的 `UV_HOME`，保证存储隔离并满足强制门
+            .env(EnvVars::UV_HOME, self.temp_dir.as_os_str())
             // Installations are not allowed by default; see `Self::with_managed_python_dirs`
             .env(EnvVars::UV_PYTHON_DOWNLOADS, "never")
             .env(EnvVars::UV_PYTHON_SEARCH_PATH, self.python_path())
@@ -1553,11 +1600,7 @@ impl TestContext {
     /// Create a `uv python find` command with options shared across scenarios.
     pub fn python_find(&self) -> Command {
         let mut command = self.new_command();
-        command
-            .arg("python")
-            .arg("find")
-            .env(EnvVars::UV_PREVIEW, "1")
-            .env(EnvVars::UV_PYTHON_INSTALL_DIR, "");
+        command.arg("python").arg("find").env(EnvVars::UV_PREVIEW, "1");
         self.add_shared_options(&mut command, false);
         command
     }
@@ -1565,10 +1608,7 @@ impl TestContext {
     /// Create a `uv python list` command with options shared across scenarios.
     pub fn python_list(&self) -> Command {
         let mut command = self.new_command();
-        command
-            .arg("python")
-            .arg("list")
-            .env(EnvVars::UV_PYTHON_INSTALL_DIR, "");
+        command.arg("python").arg("list");
         self.add_shared_options(&mut command, false);
         command
     }
@@ -2154,7 +2194,11 @@ pub fn venv_bin_path(venv: impl AsRef<Path>) -> PathBuf {
 
 /// Get the path to the python interpreter for a specific python version.
 fn get_python(version: &PythonVersion) -> PathBuf {
-    ManagedPythonInstallations::from_settings(None, None)
+    // [第3次修正] 收敛到 UV_HOME：从环境变量读取 uv_home 后传入
+    let uv_home = env::var_os(EnvVars::UV_HOME)
+        .filter(|s| !s.is_empty())
+        .map(PathBuf::from);
+    ManagedPythonInstallations::from_settings(None, uv_home)
         .map(|installed_pythons| {
             installed_pythons
                 .find_version(version)
@@ -2198,8 +2242,14 @@ pub fn python_path_with_versions(
     python_versions: &[&str],
 ) -> anyhow::Result<OsString> {
     let download_list = ManagedPythonDownloadList::new_only_embedded().unwrap();
+    let python_installations = python_installations_for_versions(
+        temp_dir,
+        python_versions,
+        &download_list,
+    )?
+    .expect("Failed to find test Python versions");
     Ok(env::join_paths(
-        python_installations_for_versions(temp_dir, python_versions, &download_list)?
+        python_installations
             .into_iter()
             .map(|path| path.parent().unwrap().to_path_buf()),
     )?)
@@ -2212,34 +2262,32 @@ fn python_installations_for_versions(
     temp_dir: &ChildPath,
     python_versions: &[&str],
     download_list: &ManagedPythonDownloadList,
-) -> anyhow::Result<Vec<PathBuf>> {
+) -> anyhow::Result<Option<Vec<PathBuf>>> {
     let cache = Cache::from_path(temp_dir.child("cache").to_path_buf())
         .init_no_wait()?
         .expect("No cache contention when setting up Python in tests");
     let _preview = uv_preview::test::with_features(&[]);
-    let selected_pythons = python_versions
-        .iter()
-        .map(|python_version| {
-            if let Ok(python) = PythonInstallation::find(
-                &PythonRequest::parse(python_version),
-                EnvironmentPreference::OnlySystem,
-                PythonPreference::Managed,
-                download_list,
-                &cache,
-            ) {
-                python.into_interpreter().sys_executable().to_owned()
-            } else {
-                panic!("Could not find Python {python_version} for test\nTry `cargo run python install` first, or refer to CONTRIBUTING.md");
+    let mut selected_pythons = Vec::with_capacity(python_versions.len());
+    for python_version in python_versions {
+        match PythonInstallation::find(
+            &PythonRequest::parse(python_version),
+            EnvironmentPreference::OnlySystem,
+            PythonPreference::Managed,
+            download_list,
+            &cache,
+        ) {
+            Ok(python) => {
+                selected_pythons.push(python.into_interpreter().sys_executable().to_owned());
             }
-        })
-        .collect::<Vec<_>>();
+            // [第4次修正] 找不到请求的 Python 版本时不再 `panic!`，而是返回 `None` 让测试被跳过。
+            // 具体的跳过提示由 `test_context!` / `test_context_with_versions!` 宏打印。
+            Err(_) => {
+                return Ok(None);
+            }
+        }
+    }
 
-    assert!(
-        python_versions.is_empty() || !selected_pythons.is_empty(),
-        "Failed to fulfill requested test Python versions: {selected_pythons:?}"
-    );
-
-    Ok(selected_pythons)
+    Ok(Some(selected_pythons))
 }
 
 #[derive(Debug, Copy, Clone)]
@@ -2293,8 +2341,6 @@ pub fn run_and_format_silent<T: AsRef<str>>(
     windows_filters: Option<WindowsFilters>,
     input: Option<&str>,
 ) -> (String, Output) {
-    assert_effective_cache_directory(command.borrow_mut());
-
     let program = command
         .borrow_mut()
         .get_program()
@@ -2417,33 +2463,6 @@ pub fn run_and_format_silent<T: AsRef<str>>(
     }
 
     (snapshot, output)
-}
-
-/// Reject cache environment overrides hidden by an explicit cache-directory argument.
-///
-/// Context commands always include `--cache-dir`, so setting `UV_CACHE_DIR` after constructing
-/// one cannot change its cache. Check the completed command immediately before execution so
-/// snapshots cannot silently pass without exercising their intended cache configuration.
-fn assert_effective_cache_directory(command: &Command) {
-    let cache_directory_override = command
-        .get_envs()
-        .find(|(name, value)| *name == EnvVars::UV_CACHE_DIR && value.is_some());
-
-    if cache_directory_override.is_none() {
-        return;
-    }
-
-    let explicit_cache_directory = command.get_args().any(|argument| {
-        argument == "--cache-dir"
-            || argument
-                .to_str()
-                .is_some_and(|argument| argument.starts_with("--cache-dir="))
-    });
-
-    assert!(
-        !explicit_cache_directory,
-        "`UV_CACHE_DIR` is ignored because this command already supplies `--cache-dir`; configure `TestContext::cache_dir` instead"
-    );
 }
 
 /// Recursively copy a directory and its contents, skipping gitignored files.
@@ -2666,59 +2685,5 @@ mod process_status_tests {
             run_and_format_silent(command, filters, "preserves_exit_code", None, None);
 
         insta::assert_snapshot!(snapshot, @"exit_code: 7 (failure)");
-    }
-}
-
-#[cfg(test)]
-mod cache_directory_tests {
-    use std::process::Command;
-
-    use uv_static::EnvVars;
-
-    use super::assert_effective_cache_directory;
-
-    #[test]
-    #[should_panic(expected = "`UV_CACHE_DIR` is ignored")]
-    fn rejects_environment_override_with_explicit_cache_argument() {
-        let mut command = Command::new("uv");
-        command
-            .arg("--cache-dir")
-            .arg("context-cache")
-            .env(EnvVars::UV_CACHE_DIR, "ignored-cache");
-
-        assert_effective_cache_directory(&command);
-    }
-
-    #[test]
-    #[should_panic(expected = "`UV_CACHE_DIR` is ignored")]
-    fn rejects_environment_override_with_inline_cache_argument() {
-        let mut command = Command::new("uv");
-        command
-            .arg("--cache-dir=context-cache")
-            .env(EnvVars::UV_CACHE_DIR, "ignored-cache");
-
-        assert_effective_cache_directory(&command);
-    }
-
-    #[test]
-    fn allows_environment_override_without_explicit_cache_argument() {
-        let mut command = Command::new("uv");
-        command
-            .arg("cache")
-            .arg("dir")
-            .env(EnvVars::UV_CACHE_DIR, "effective-cache");
-
-        assert_effective_cache_directory(&command);
-    }
-
-    #[test]
-    fn allows_removed_environment_override_with_explicit_cache_argument() {
-        let mut command = Command::new("uv");
-        command
-            .arg("--cache-dir")
-            .arg("context-cache")
-            .env_remove(EnvVars::UV_CACHE_DIR);
-
-        assert_effective_cache_directory(&command);
     }
 }

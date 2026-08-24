@@ -2057,13 +2057,11 @@ fn check_virtual_root_uses_own_ty() -> Result<()> {
 fn check_uses_ty_from_environment() -> Result<()> {
     let context =
         uv_test::test_context!("3.12").with_filter((r"ty 0\.0\.17(?: \([^)]*\))?", "ty 0.0.17"));
-    let tool_dir = context.root.child("tools");
     let bin_dir = context.root.child("tool-bin");
 
     context
         .tool_install()
         .arg("ty==0.0.17")
-        .env(EnvVars::UV_TOOL_DIR, tool_dir.as_os_str())
         .env(EnvVars::XDG_BIN_HOME, bin_dir.as_os_str())
         .env(EnvVars::UV_EXCLUDE_NEWER, "2026-02-15T00:00:00Z")
         .assert()
@@ -2435,13 +2433,11 @@ fn check_script_ty_override_precedence() -> Result<()> {
             r"(?m)^WARN Failed to fetch `ty` from .+; falling back to .+\n",
             "",
         ));
-    let tool_dir = context.root.child("tools");
     let bin_dir = context.root.child("tool-bin");
 
     context
         .tool_install()
         .arg("ty==0.0.17")
-        .env(EnvVars::UV_TOOL_DIR, tool_dir.as_os_str())
         .env(EnvVars::XDG_BIN_HOME, bin_dir.as_os_str())
         .env(EnvVars::UV_EXCLUDE_NEWER, "2026-02-15T00:00:00Z")
         .assert()

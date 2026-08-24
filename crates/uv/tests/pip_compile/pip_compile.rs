@@ -16039,9 +16039,7 @@ fn respect_index_preference() -> Result<()> {
 #[test]
 fn dependency_group() -> Result<()> {
     // uv pip compile --group tests, with a single pyproject.toml
-    fn new_context() -> Result<TestContext> {
-        let context = uv_test::test_context!("3.12");
-
+    fn new_context(context: &TestContext) -> Result<()> {
         let pyproject_toml = context.temp_dir.child("pyproject.toml");
         pyproject_toml.write_str(
             r#"
@@ -16057,7 +16055,7 @@ fn dependency_group() -> Result<()> {
             "#,
         )?;
 
-        Ok(context)
+        Ok(())
     }
 
     fn command(context: &TestContext, server: &PackseServer) -> Command {
@@ -16066,11 +16064,11 @@ fn dependency_group() -> Result<()> {
         command
     }
 
+    let context = uv_test::test_context!("3.12");
     let server = PackseServer::new("simple/dependency-groups.toml");
-    let mut context;
 
     // Passing --group should add just that group's contents from ./pyproject.toml
-    context = new_context()?;
+    new_context(&context)?;
     uv_snapshot!(context.filters(), command(&context, &server)
         .arg("--group").arg("bar"), @"
     exit_code: 0 (success)
@@ -16087,7 +16085,7 @@ fn dependency_group() -> Result<()> {
     // Passing a pyproject.toml and --group should include both its deps and the group
     // (This is a "try to confuse the internals" test, as this file is logically
     // imported twice, but with two different semantics.)
-    context = new_context()?;
+    new_context(&context)?;
     uv_snapshot!(context.filters(), command(&context, &server)
         .arg("pyproject.toml")
         .arg("--group").arg("bar"), @"
@@ -16105,7 +16103,7 @@ fn dependency_group() -> Result<()> {
     ");
 
     // Another "try to confuse the internals" test with an absolute path
-    context = new_context()?;
+    new_context(&context)?;
     uv_snapshot!(context.filters(), command(&context, &server)
         .arg(context.temp_dir.child("pyproject.toml").path())
         .arg("--group").arg("bar"), @"
@@ -16123,7 +16121,7 @@ fn dependency_group() -> Result<()> {
     ");
 
     // An explicit use of `<path>:<group>` syntax, here using what the default is anyway
-    context = new_context()?;
+    new_context(&context)?;
     uv_snapshot!(context.filters(), command(&context, &server)
         .arg("--group").arg("pyproject.toml:bar"), @"
     exit_code: 0 (success)
@@ -16138,7 +16136,7 @@ fn dependency_group() -> Result<()> {
     ");
 
     // "try to confuse the internals" with an explicit path for the group
-    context = new_context()?;
+    new_context(&context)?;
     uv_snapshot!(context.filters(), command(&context, &server)
         .arg("pyproject.toml")
         .arg("--group").arg("pyproject.toml:bar"), @"
@@ -16156,7 +16154,7 @@ fn dependency_group() -> Result<()> {
     ");
 
     // Let's check that the other group works fine individually
-    context = new_context()?;
+    new_context(&context)?;
     uv_snapshot!(context.filters(), command(&context, &server)
         .arg("--group").arg("foo"), @"
     exit_code: 0 (success)
@@ -16171,7 +16169,7 @@ fn dependency_group() -> Result<()> {
     ");
 
     // Now let's do both of the groups together
-    context = new_context()?;
+    new_context(&context)?;
     uv_snapshot!(context.filters(), command(&context, &server)
         .arg("--group").arg("foo")
         .arg("--group").arg("bar"), @"
@@ -16189,7 +16187,7 @@ fn dependency_group() -> Result<()> {
     ");
 
     // And finally put it all together
-    context = new_context()?;
+    new_context(&context)?;
     uv_snapshot!(context.filters(), command(&context, &server)
         .arg("pyproject.toml")
         .arg("--group").arg("foo")
@@ -16215,9 +16213,7 @@ fn dependency_group() -> Result<()> {
 #[test]
 fn many_pyproject_group() -> Result<()> {
     // uv pip compile --group tests, with multiple pyproject.tomls at once
-    fn new_context() -> Result<TestContext> {
-        let context = uv_test::test_context!("3.12");
-
+    fn new_context(context: &TestContext) -> Result<()> {
         let pyproject_toml = context.temp_dir.child("pyproject.toml");
         pyproject_toml.write_str(
             r#"
@@ -16247,13 +16243,13 @@ fn many_pyproject_group() -> Result<()> {
             "#,
         )?;
 
-        Ok(context)
+        Ok(())
     }
 
-    let mut context;
+    let context = uv_test::test_context!("3.12");
 
     // Use the 'foo' group from the main toml
-    context = new_context()?;
+    new_context(&context)?;
     uv_snapshot!(context.filters(), context.pip_compile()
         .arg("--group").arg("pyproject.toml:foo"), @"
     exit_code: 0 (success)
@@ -16283,7 +16279,7 @@ fn many_pyproject_group() -> Result<()> {
 
     // Now try both together, where they happen to define a group with the same name
     // (This does nothing special but the code shouldn't get confused.)
-    context = new_context()?;
+    new_context(&context)?;
     uv_snapshot!(context.filters(), context.pip_compile()
         .arg("--group").arg("pyproject.toml:foo")
         .arg("--group").arg("subdir/pyproject.toml:foo"), @"
@@ -16307,9 +16303,7 @@ fn many_pyproject_group() -> Result<()> {
 fn suspicious_group() -> Result<()> {
     // uv pip compile --group tests, where the invocations are suspicious
     // and we might want to add warnings
-    fn new_context() -> Result<TestContext> {
-        let context = uv_test::test_context!("3.12");
-
+    fn new_context(context: &TestContext) -> Result<()> {
         let pyproject_toml = context.temp_dir.child("pyproject.toml");
         pyproject_toml.write_str(
             r#"
@@ -16339,13 +16333,13 @@ fn suspicious_group() -> Result<()> {
             "#,
         )?;
 
-        Ok(context)
+        Ok(())
     }
 
-    let mut context;
+    let context = uv_test::test_context!("3.12");
 
     // Another variant of "both" but with the path sugar applied to the one in cwd
-    context = new_context()?;
+    new_context(&context)?;
     uv_snapshot!(context.filters(), context.pip_compile()
         .arg("--group").arg("foo")
         .arg("--group").arg("subdir/pyproject.toml:foo"), @"
@@ -16365,7 +16359,7 @@ fn suspicious_group() -> Result<()> {
     // Using the path sugar for "foo" but requesting "bar" for the subtoml
     // Although you would be forgiven for thinking "foo" should be used from
     // the subtoml, that's not what should happen.
-    context = new_context()?;
+    new_context(&context)?;
     uv_snapshot!(context.filters(), context.pip_compile()
         .arg("--group").arg("foo")
         .arg("--group").arg("subdir/pyproject.toml:bar"), @"
@@ -16386,7 +16380,7 @@ fn suspicious_group() -> Result<()> {
     // while also importing subdir/pyproject.toml's dependencies
     // Although you would be forgiven for thinking "foo" should be used from
     // the subtoml, that's not what should happen.
-    context = new_context()?;
+    new_context(&context)?;
     uv_snapshot!(context.filters(), context.pip_compile()
         .arg("subdir/pyproject.toml")
         .arg("--group").arg("foo"), @"
@@ -16405,7 +16399,7 @@ fn suspicious_group() -> Result<()> {
 
     // An inversion of the previous -- this one isn't terribly ambiguous
     // but we should have it in the suite too in case it should be distinguished!
-    context = new_context()?;
+    new_context(&context)?;
     uv_snapshot!(context.filters(), context.pip_compile()
         .arg("pyproject.toml")
         .arg("--group").arg("subdir/pyproject.toml:foo"), @"
@@ -16428,9 +16422,7 @@ fn suspicious_group() -> Result<()> {
 #[test]
 fn invalid_group() -> Result<()> {
     // uv pip compile --group tests, where the invocations should fail
-    fn new_context() -> Result<TestContext> {
-        let context = uv_test::test_context!("3.12");
-
+    fn new_context(context: &TestContext) -> Result<()> {
         let pyproject_toml = context.temp_dir.child("pyproject.toml");
         pyproject_toml.write_str(
             r#"
@@ -16460,10 +16452,11 @@ fn invalid_group() -> Result<()> {
             "#,
         )?;
 
-        Ok(context)
+        Ok(())
     }
 
-    let context = new_context()?;
+    let context = uv_test::test_context!("3.12");
+    new_context(&context)?;
 
     // Hey you passed a path and not a group!
     uv_snapshot!(context.filters(), context.pip_compile()
@@ -16512,9 +16505,7 @@ fn invalid_group() -> Result<()> {
 #[test]
 fn project_and_group_workspace_inherit() -> Result<()> {
     // Checking that --project is handled properly with --group
-    fn new_context() -> Result<TestContext> {
-        let context = uv_test::test_context!("3.12");
-
+    fn new_context(context: &TestContext) -> Result<()> {
         let pyproject_toml = context.temp_dir.child("pyproject.toml");
         pyproject_toml.write_str(
             r#"
@@ -16576,11 +16567,12 @@ fn project_and_group_workspace_inherit() -> Result<()> {
             "#,
         )?;
 
-        Ok(context)
+        Ok(())
     }
 
     // Check that the workspace's sources are discovered and consulted
-    let context = new_context()?;
+    let context = uv_test::test_context!("3.12");
+    new_context(&context)?;
     uv_snapshot!(context.filters(), context.pip_compile()
         .arg("--group").arg("packages/mysubproject/pyproject.toml:foo"), @"
     exit_code: 0 (success)
@@ -16610,9 +16602,7 @@ fn project_and_group_workspace_inherit() -> Result<()> {
 #[test]
 fn project_and_group_workspace() -> Result<()> {
     // Checking that --project is handled properly with --group
-    fn new_context() -> Result<TestContext> {
-        let context = uv_test::test_context!("3.12");
-
+    fn new_context(context: &TestContext) -> Result<()> {
         let pyproject_toml = context.temp_dir.child("pyproject.toml");
         pyproject_toml.write_str(
             r#"
@@ -16641,13 +16631,13 @@ fn project_and_group_workspace() -> Result<()> {
             "#,
         )?;
 
-        Ok(context)
+        Ok(())
     }
 
-    let mut context;
+    let context = uv_test::test_context!("3.12");
 
     // 'foo' from subtoml, by implicit-sugar + --project
-    context = new_context()?;
+    new_context(&context)?;
     uv_snapshot!(context.filters(), context.pip_compile()
         .arg("--project").arg("subdir")
         .arg("--group").arg("foo"), @"
@@ -16665,7 +16655,7 @@ fn project_and_group_workspace() -> Result<()> {
     // 'foo' from subtoml, by implicit-sugar + --project
     // 'bar' from subtoml, by explicit relpath from cwd
     // (explicit relpaths are not affected by --project)
-    context = new_context()?;
+    new_context(&context)?;
     uv_snapshot!(context.filters(), context.pip_compile()
         .arg("--project").arg("subdir")
         .arg("--group").arg("subdir/pyproject.toml:bar")
@@ -16686,7 +16676,7 @@ fn project_and_group_workspace() -> Result<()> {
     // 'bar' from subtoml, by implicit-sugar + --project
     // 'foo' from main toml, by explicit relpath from cwd
     // (explicit relpaths are not affected by --project)
-    context = new_context()?;
+    new_context(&context)?;
     uv_snapshot!(context.filters(), context.pip_compile()
         .arg("--project").arg("subdir")
         .arg("--group").arg("bar")
@@ -16707,7 +16697,7 @@ fn project_and_group_workspace() -> Result<()> {
     // 'bar' from subtoml, by explicit relpath from cwd
     // 'foo' from main toml, by explicit relpath from cwd
     // (explicit relpaths are not affected by --project)
-    context = new_context()?;
+    new_context(&context)?;
     uv_snapshot!(context.filters(), context.pip_compile()
         .arg("--project").arg("subdir")
         .arg("--group").arg("subdir/pyproject.toml:bar")
@@ -16731,9 +16721,7 @@ fn project_and_group_workspace() -> Result<()> {
 #[test]
 fn directory_and_group() -> Result<()> {
     // Checking that --directory is handled properly with --group
-    fn new_context() -> Result<TestContext> {
-        let context = uv_test::test_context!("3.12");
-
+    fn new_context(context: &TestContext) -> Result<()> {
         let pyproject_toml = context.temp_dir.child("pyproject.toml");
         pyproject_toml.write_str(
             r#"
@@ -16762,15 +16750,15 @@ fn directory_and_group() -> Result<()> {
             "#,
         )?;
 
-        Ok(context)
+        Ok(())
     }
 
-    let mut context;
+    let context = uv_test::test_context!("3.12");
 
     // 'bar' from subtoml, by implicit-sugar + --directory
     // 'foo' from main toml, by explicit relpath from --directory
     // (explicit relpaths ARE affected by --directory)
-    context = new_context()?;
+    new_context(&context)?;
     uv_snapshot!(context.filters(), context.pip_compile()
         .arg("--directory").arg("subdir")
         .arg("--group").arg("bar")
@@ -16791,7 +16779,7 @@ fn directory_and_group() -> Result<()> {
     // 'bar' from subtoml, by explicit relpath from --directory
     // 'foo' from main toml, by explicit relpath from --directory
     // (explicit relpaths ARE affected by --directory)
-    context = new_context()?;
+    new_context(&context)?;
     uv_snapshot!(context.filters(), context.pip_compile()
         .arg("--directory").arg("subdir")
         .arg("--group").arg("pyproject.toml:bar")
@@ -16812,7 +16800,7 @@ fn directory_and_group() -> Result<()> {
     // 'bar' from subtoml, by explicit relpath from --directory
     // 'foo' from main toml, by implicit path + --project + --directory
     // (explicit relpaths ARE affected by --directory)
-    context = new_context()?;
+    new_context(&context)?;
     uv_snapshot!(context.filters(), context.pip_compile()
         .arg("--directory").arg("subdir")
         .arg("--project").arg("../")

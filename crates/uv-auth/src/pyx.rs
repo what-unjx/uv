@@ -13,7 +13,6 @@ use uv_fs::{LockedFile, LockedFileMode};
 use uv_cache_key::CanonicalUrl;
 use uv_redacted::{DisplaySafeUrl, DisplaySafeUrlError};
 use uv_small_str::SmallString;
-use uv_state::{StateBucket, StateStore};
 use uv_static::EnvVars;
 
 use crate::credentials::Token;
@@ -183,14 +182,12 @@ impl PyxDirectories {
 
         // If the user has pyx credentials in their uv credentials directory, read them for
         // backwards compatibility.
-        let root = if let Some(tool_dir) = std::env::var_os(EnvVars::UV_CREDENTIALS_DIR) {
-            std::path::absolute(tool_dir)?
-        } else {
-            StateStore::from_settings(None, None)?.bucket(StateBucket::Credentials)
-        };
-        let subdirectory = root.join(&digest);
-        if subdirectory.exists() {
-            return Ok(Self { root, subdirectory });
+        if let Some(uv_home) = std::env::var_os(EnvVars::UV_HOME).filter(|s| !s.is_empty()) {
+            let root = PathBuf::from(uv_home).join("data").join("credentials");
+            let subdirectory = root.join(&digest);
+            if subdirectory.exists() {
+                return Ok(Self { root, subdirectory });
+            }
         }
 
         // Otherwise, use (e.g.) `~/.local/share/pyx`.

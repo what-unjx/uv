@@ -1048,16 +1048,14 @@ fn login_text_store_empty_file() -> Result<()> {
     uv_snapshot!(context.auth_login()
         .arg("https://example.com/simple")
         .arg("--token")
-        .arg("test-token")
-        .env(EnvVars::UV_CREDENTIALS_DIR, context.temp_dir.as_os_str()), @"
+        .arg("test-token"), @"
     exit_code: 0 (success)
     ----- stderr -----
     Stored credentials for https://example.com/
     ");
 
     uv_snapshot!(context.auth_token()
-        .arg("https://example.com/simple")
-        .env(EnvVars::UV_CREDENTIALS_DIR, context.temp_dir.as_os_str()), @"
+        .arg("https://example.com/simple"), @"
     exit_code: 0 (success)
     ----- stdout -----
     test-token
@@ -1077,8 +1075,7 @@ fn login_text_store_comments_only_file() -> Result<()> {
     uv_snapshot!(context.auth_login()
         .arg("https://example.com/simple")
         .arg("--token")
-        .arg("test-token")
-        .env(EnvVars::UV_CREDENTIALS_DIR, context.temp_dir.as_os_str()), @"
+        .arg("test-token"), @"
     exit_code: 0 (success)
     ----- stderr -----
     Stored credentials for https://example.com/

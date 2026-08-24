@@ -1,5 +1,3 @@
-use uv_static::EnvVars;
-
 use uv_test::uv_snapshot;
 
 #[test]
@@ -63,7 +61,7 @@ fn help() {
     Cache options:
       -n, --no-cache               Avoid reading from or writing to the cache, instead using a temporary
                                    directory for the duration of the operation [env: UV_NO_CACHE=]
-          --cache-dir [CACHE_DIR]  Path to the cache directory [env: UV_CACHE_DIR=]
+          --cache-dir [CACHE_DIR]  Path to the cache directory
 
     Python options:
           --managed-python       Require use of uv-managed Python versions [env: UV_MANAGED_PYTHON=]
@@ -143,7 +141,7 @@ fn help_flag() {
     Cache options:
       -n, --no-cache               Avoid reading from or writing to the cache, instead using a temporary
                                    directory for the duration of the operation [env: UV_NO_CACHE=]
-          --cache-dir [CACHE_DIR]  Path to the cache directory [env: UV_CACHE_DIR=]
+          --cache-dir [CACHE_DIR]  Path to the cache directory
 
     Python options:
           --managed-python       Require use of uv-managed Python versions [env: UV_MANAGED_PYTHON=]
@@ -223,7 +221,7 @@ fn help_short_flag() {
     Cache options:
       -n, --no-cache               Avoid reading from or writing to the cache, instead using a temporary
                                    directory for the duration of the operation [env: UV_NO_CACHE=]
-          --cache-dir [CACHE_DIR]  Path to the cache directory [env: UV_CACHE_DIR=]
+          --cache-dir [CACHE_DIR]  Path to the cache directory
 
     Python options:
           --managed-python       Require use of uv-managed Python versions [env: UV_MANAGED_PYTHON=]
@@ -283,7 +281,7 @@ fn help_flag_workspace() {
     Cache options:
       -n, --no-cache               Avoid reading from or writing to the cache, instead using a temporary
                                    directory for the duration of the operation [env: UV_NO_CACHE=]
-          --cache-dir [CACHE_DIR]  Path to the cache directory [env: UV_CACHE_DIR=]
+          --cache-dir [CACHE_DIR]  Path to the cache directory
 
     Python options:
           --managed-python       Require use of uv-managed Python versions [env: UV_MANAGED_PYTHON=]
@@ -393,12 +391,11 @@ fn help_subcommand() {
           --cache-dir [CACHE_DIR]
               Path to the cache directory.
 
-              Defaults to `$XDG_CACHE_HOME/uv` or `$HOME/.cache/uv` on macOS and Linux, and
-              `%LOCALAPPDATA%/uv/cache` on Windows.
+              Defaults to `UV_HOME/cache/`.
+
+              When `UV_HOME` is set, this flag takes precedence over the `UV_HOME/cache/` subdirectory.
 
               To view the location of the cache directory, run `uv cache dir`.
-
-              [env: UV_CACHE_DIR=]
 
     Python options:
           --managed-python
@@ -535,7 +532,7 @@ fn help_subcommand() {
 fn help_subsubcommand() {
     let context = uv_test::test_context_with_versions!(&[]);
 
-    uv_snapshot!(context.filters(), context.help().env_remove(EnvVars::UV_PYTHON_INSTALL_DIR).arg("python").arg("install"), @r#"
+    uv_snapshot!(context.filters(), context.help().arg("python").arg("install"), @r#"
     exit_code: 0 (success)
     ----- stdout -----
     Download and install Python versions.
@@ -575,13 +572,11 @@ fn help_subsubcommand() {
       -i, --install-dir <INSTALL_DIR>
               The directory to store the Python installation in.
 
-              If provided, `UV_PYTHON_INSTALL_DIR` will need to be set for subsequent operations for uv
-              to discover the Python installation.
+              If provided, the same directory must be passed for subsequent operations for uv to
+              discover the Python installation.
 
               See `uv python dir` to view the current Python installation directory. Defaults to
-              `~/.local/share/uv/python`.
-
-              [env: UV_PYTHON_INSTALL_DIR=]
+              `UV_HOME/data/python`.
 
           --no-bin
               Do not install a Python executable into the `bin` directory.
@@ -676,12 +671,11 @@ fn help_subsubcommand() {
           --cache-dir [CACHE_DIR]
               Path to the cache directory.
 
-              Defaults to `$XDG_CACHE_HOME/uv` or `$HOME/.cache/uv` on macOS and Linux, and
-              `%LOCALAPPDATA%/uv/cache` on Windows.
+              Defaults to `UV_HOME/cache/`.
+
+              When `UV_HOME` is set, this flag takes precedence over the `UV_HOME/cache/` subdirectory.
 
               To view the location of the cache directory, run `uv cache dir`.
-
-              [env: UV_CACHE_DIR=]
 
     Python options:
           --managed-python
@@ -836,7 +830,7 @@ fn help_flag_subcommand() {
     Cache options:
       -n, --no-cache               Avoid reading from or writing to the cache, instead using a temporary
                                    directory for the duration of the operation [env: UV_NO_CACHE=]
-          --cache-dir [CACHE_DIR]  Path to the cache directory [env: UV_CACHE_DIR=]
+          --cache-dir [CACHE_DIR]  Path to the cache directory
 
     Python options:
           --managed-python       Require use of uv-managed Python versions [env: UV_MANAGED_PYTHON=]
@@ -891,7 +885,7 @@ fn help_flag_subsubcommand() {
 
     Options:
       -i, --install-dir <INSTALL_DIR>
-              The directory to store the Python installation in [env: UV_PYTHON_INSTALL_DIR=]
+              The directory to store the Python installation in
           --no-bin
               Do not install a Python executable into the `bin` directory
           --no-registry
@@ -917,7 +911,7 @@ fn help_flag_subsubcommand() {
     Cache options:
       -n, --no-cache               Avoid reading from or writing to the cache, instead using a temporary
                                    directory for the duration of the operation [env: UV_NO_CACHE=]
-          --cache-dir [CACHE_DIR]  Path to the cache directory [env: UV_CACHE_DIR=]
+          --cache-dir [CACHE_DIR]  Path to the cache directory
 
     Python options:
           --managed-python       Require use of uv-managed Python versions [env: UV_MANAGED_PYTHON=]
@@ -1076,7 +1070,7 @@ fn help_with_global_option() {
     Cache options:
       -n, --no-cache               Avoid reading from or writing to the cache, instead using a temporary
                                    directory for the duration of the operation [env: UV_NO_CACHE=]
-          --cache-dir [CACHE_DIR]  Path to the cache directory [env: UV_CACHE_DIR=]
+          --cache-dir [CACHE_DIR]  Path to the cache directory
 
     Python options:
           --managed-python       Require use of uv-managed Python versions [env: UV_MANAGED_PYTHON=]
@@ -1192,7 +1186,7 @@ fn help_with_no_pager() {
     Cache options:
       -n, --no-cache               Avoid reading from or writing to the cache, instead using a temporary
                                    directory for the duration of the operation [env: UV_NO_CACHE=]
-          --cache-dir [CACHE_DIR]  Path to the cache directory [env: UV_CACHE_DIR=]
+          --cache-dir [CACHE_DIR]  Path to the cache directory
 
     Python options:
           --managed-python       Require use of uv-managed Python versions [env: UV_MANAGED_PYTHON=]

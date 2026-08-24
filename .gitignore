@@ -39,6 +39,7 @@ profile.json.gz
 
 # MkDocs
 /site
+TEMP.TXT
 
 # Generated reference docs (use `cargo dev generate-all` to regenerate)
 /docs/reference/cli.md

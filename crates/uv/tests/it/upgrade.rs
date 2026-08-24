@@ -75,7 +75,7 @@ fn upgrade_help() {
     Cache options:
       -n, --no-cache               Avoid reading from or writing to the cache, instead using a temporary
                                    directory for the duration of the operation [env: UV_NO_CACHE=]
-          --cache-dir [CACHE_DIR]  Path to the cache directory [env: UV_CACHE_DIR=]
+          --cache-dir [CACHE_DIR]  Path to the cache directory
 
     Python options:
           --managed-python       Require use of uv-managed Python versions [env: UV_MANAGED_PYTHON=]

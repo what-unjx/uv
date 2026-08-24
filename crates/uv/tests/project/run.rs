@@ -6400,9 +6400,7 @@ fn run_only_group_and_extra_conflict() -> Result<()> {
     Ok(())
 }
 
-fn setup_target_workspace_discovery_context() -> Result<TestContext> {
-    let context = uv_test::test_context!("3.12");
-
+fn setup_target_workspace_discovery_context(context: &TestContext) -> Result<()> {
     // Create a workspace in a subdirectory.
     let workspace = context.temp_dir.child("project");
     workspace.create_dir_all()?;
@@ -6434,14 +6432,15 @@ fn setup_target_workspace_discovery_context() -> Result<TestContext> {
         "
     })?;
 
-    Ok(context)
+    Ok(())
 }
 
 /// Test that `uv run` discovers the workspace from the target's directory rather than the current
 /// working directory.
 #[test]
 fn run_target_workspace_discovery() -> Result<()> {
-    let context = setup_target_workspace_discovery_context()?;
+    let context = uv_test::test_context!("3.12");
+    setup_target_workspace_discovery_context(&context)?;
 
     // Write invalid configuration files to the cwd to verify that the
     // target workspace discovery skips parsing them.
@@ -7488,7 +7487,8 @@ fn run_target_workspace_discovery_bare_script() -> Result<()> {
 /// `--project` should still take precedence over target workspace discovery.
 #[test]
 fn run_project_precedes_target_workspace_discovery() -> Result<()> {
-    let context = setup_target_workspace_discovery_context()?;
+    let context = uv_test::test_context!("3.12");
+    setup_target_workspace_discovery_context(&context)?;
     let missing_project = context.temp_dir.child("missing-project");
 
     uv_snapshot!(context.filters(), context.run()

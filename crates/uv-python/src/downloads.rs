@@ -1260,22 +1260,18 @@ impl ManagedPythonDownload {
 
         let temp_dir = tempfile::tempdir_in(scratch_dir).map_err(Error::DownloadDirError)?;
 
-        // [第1次试飞后修正]
-        // 新增：当 UV_PYTHON_CACHE_DIR 未设置但 UV_HOME 已设置时，使用 UV_HOME/cache/python
-        let python_builds_dir_opt =
-            env::var_os(EnvVars::UV_PYTHON_CACHE_DIR).filter(|s| !s.is_empty())
-                .or_else(|| {
-                    env::var_os(EnvVars::UV_HOME)
-                        .filter(|s| !s.is_empty())
-                        .map(|home| {
-                            let mut path = std::ffi::OsString::from(home);
-                            path.push(std::path::MAIN_SEPARATOR_STR);
-                            path.push("cache");
-                            path.push(std::path::MAIN_SEPARATOR_STR);
-                            path.push("python");
-                            path
-                        })
-                });
+        // [第3次修正]
+        // 收敛到 UV_HOME：删除 `UV_PYTHON_CACHE_DIR`，Python 下载缓存固定为 UV_HOME/cache/python
+        let python_builds_dir_opt = env::var_os(EnvVars::UV_HOME)
+            .filter(|s| !s.is_empty())
+            .map(|home| {
+                let mut path = std::ffi::OsString::from(home);
+                path.push(std::path::MAIN_SEPARATOR_STR);
+                path.push("cache");
+                path.push(std::path::MAIN_SEPARATOR_STR);
+                path.push("python");
+                path
+            });
 
         if let Some(python_builds_dir) = python_builds_dir_opt
         {

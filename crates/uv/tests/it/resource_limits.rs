@@ -21,7 +21,6 @@ fn adjust_open_file_limit() {
         .arg(python)
         .arg("-c")
         .arg("import resource; print(resource.getrlimit(resource.RLIMIT_NOFILE)[0] > 128)")
-        .env(EnvVars::UV_CACHE_DIR, context.cache_dir.path());
 
     uv_snapshot!(context.filters(), command, @r"
     exit_code: 0 (success)
@@ -93,7 +92,6 @@ fn run_open_file_limit_override_exceeds_hard_limit() {
         .arg(python)
         .arg("-c")
         .arg("pass")
-        .env(EnvVars::UV_CACHE_DIR, context.cache_dir.path())
         .env(EnvVars::UV_RUN_RLIMIT_NOFILE, "256");
 
     uv_snapshot!(context.filters(), command, @r"

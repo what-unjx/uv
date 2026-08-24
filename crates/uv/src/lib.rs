@@ -316,13 +316,21 @@ async fn run_with_workspace_cache(
     //    starting from the current directory.
 
     // Pass the (possibly non-existent) cache dir path to the initial workspace discovery.
-    // [第1次试飞后修正] 发现阶段 uv_home 尚未解析，传 None
-    let discovery_cache = Cache::from_settings(
-        cli.top_level.cache_args.no_cache,
-        cli.top_level.cache_args.cache_dir.clone(),
-        None,
-        None,
-    )?;
+    // [第3次修正]
+    // 发现阶段 uv_home 可能来自 uv.toml `home`，尚未解析：优先使用 `--cache-dir`，其次读环境
+    // 变量 `UV_HOME`，两者都没有则退回临时缓存；强制门会在配置解析后统一校验 uv_home。
+    let discovery_cache = if let Some(cache_dir) = cli.top_level.cache_args.cache_dir.clone() {
+        Cache::from_settings(cli.top_level.cache_args.no_cache, Some(cache_dir), None, None)?
+    } else if let Some(uv_home) = std::env::var_os(EnvVars::UV_HOME).filter(|s| !s.is_empty()) {
+        Cache::from_settings(
+            cli.top_level.cache_args.no_cache,
+            None,
+            None,
+            Some(std::path::PathBuf::from(uv_home)),
+        )?
+    } else {
+        Cache::temp()?
+    };
     let filesystem = if let Some(config_file) = cli.top_level.config_file.as_ref() {
         if config_file
             .file_name()

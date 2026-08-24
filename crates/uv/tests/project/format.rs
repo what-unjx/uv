@@ -89,13 +89,11 @@ fn format_project() -> Result<()> {
 #[cfg(feature = "test-pypi")]
 fn format_uses_ruff_from_environment() -> Result<()> {
     let context = uv_test::test_context!("3.12");
-    let tool_dir = context.root.child("tools");
     let bin_dir = context.root.child("tool-bin");
 
     context
         .tool_install()
         .arg("ruff==0.3.4")
-        .env(EnvVars::UV_TOOL_DIR, tool_dir.as_os_str())
         .env(EnvVars::XDG_BIN_HOME, bin_dir.as_os_str())
         .assert()
         .success();

@@ -1157,8 +1157,7 @@ fn python_find_version_range_installation_key_order() {
     uv_snapshot!(context.filters(), context.python_list()
         .arg("==3.15.*")
         .arg("--only-installed")
-        .env(EnvVars::UV_PYTHON_SEARCH_PATH, context.bin_dir.path())
-        .env(EnvVars::UV_PYTHON_INSTALL_DIR, context.temp_dir.child("missing-managed").path()), @"
+        .env(EnvVars::UV_PYTHON_SEARCH_PATH, context.bin_dir.path()), @"
     exit_code: 0 (success)
     ----- stdout -----
     cpython-3.15.[LATEST]-[PLATFORM]                 [BIN]/python3.15 -> managed/cpython-3.15-[PLATFORM]/[INSTALL-BIN]/python3.15

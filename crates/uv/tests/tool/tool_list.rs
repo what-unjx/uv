@@ -13,20 +13,17 @@ use wiremock::{
 #[test]
 fn tool_list() {
     let context = uv_test::test_context!("3.12").with_filtered_exe_suffix();
-    let tool_dir = context.temp_dir.child("tools");
     let bin_dir = context.temp_dir.child("bin");
 
     // Install `black`
     context
         .tool_install()
         .arg("black==24.2.0")
-        .env(EnvVars::UV_TOOL_DIR, tool_dir.as_os_str())
         .env(EnvVars::XDG_BIN_HOME, bin_dir.as_os_str())
         .assert()
         .success();
 
     uv_snapshot!(context.filters(), context.tool_list()
-    .env(EnvVars::UV_TOOL_DIR, tool_dir.as_os_str())
     .env(EnvVars::XDG_BIN_HOME, bin_dir.as_os_str()), @"
     exit_code: 0 (success)
     ----- stdout -----
@@ -39,20 +36,17 @@ fn tool_list() {
 #[test]
 fn tool_list_paths() {
     let context = uv_test::test_context!("3.12").with_filtered_exe_suffix();
-    let tool_dir = context.temp_dir.child("tools");
     let bin_dir = context.temp_dir.child("bin");
 
     // Install `black`
     context
         .tool_install()
         .arg("black==24.2.0")
-        .env(EnvVars::UV_TOOL_DIR, tool_dir.as_os_str())
         .env(EnvVars::XDG_BIN_HOME, bin_dir.as_os_str())
         .assert()
         .success();
 
     uv_snapshot!(context.filters(), context.tool_list().arg("--show-paths")
-    .env(EnvVars::UV_TOOL_DIR, tool_dir.as_os_str())
     .env(EnvVars::XDG_BIN_HOME, bin_dir.as_os_str()), @"
     exit_code: 0 (success)
     ----- stdout -----
@@ -68,20 +62,17 @@ fn tool_list_paths_windows() {
     let context = uv_test::test_context!("3.12")
         .clear_filters()
         .with_filtered_windows_temp_dir();
-    let tool_dir = context.temp_dir.child("tools");
     let bin_dir = context.temp_dir.child("bin");
 
     // Install `black`
     context
         .tool_install()
         .arg("black==24.2.0")
-        .env(EnvVars::UV_TOOL_DIR, tool_dir.as_os_str())
         .env(EnvVars::XDG_BIN_HOME, bin_dir.as_os_str())
         .assert()
         .success();
 
     uv_snapshot!(context.filters_without_standard_filters(), context.tool_list().arg("--show-paths")
-    .env(EnvVars::UV_TOOL_DIR, tool_dir.as_os_str())
     .env(EnvVars::XDG_BIN_HOME, bin_dir.as_os_str()), @r###"
     exit_code: 0 (success)
     ----- stdout -----
@@ -94,11 +85,9 @@ fn tool_list_paths_windows() {
 #[test]
 fn tool_list_empty() {
     let context = uv_test::test_context!("3.12").with_filtered_exe_suffix();
-    let tool_dir = context.temp_dir.child("tools");
     let bin_dir = context.temp_dir.child("bin");
 
     uv_snapshot!(context.filters(), context.tool_list()
-    .env(EnvVars::UV_TOOL_DIR, tool_dir.as_os_str())
     .env(EnvVars::XDG_BIN_HOME, bin_dir.as_os_str()), @"
     exit_code: 0 (success)
     ----- stderr -----
@@ -109,13 +98,11 @@ fn tool_list_empty() {
 #[test]
 fn tool_list_outdated_empty() {
     let context = uv_test::test_context!("3.12").with_filtered_exe_suffix();
-    let tool_dir = context.temp_dir.child("tools");
     let bin_dir = context.temp_dir.child("bin");
 
     // With no tools installed, `--outdated` should produce the same output as the base case.
     uv_snapshot!(context.filters(), context.tool_list()
     .arg("--outdated")
-    .env(EnvVars::UV_TOOL_DIR, tool_dir.as_os_str())
     .env(EnvVars::XDG_BIN_HOME, bin_dir.as_os_str()), @"
     exit_code: 0 (success)
     ----- stderr -----
@@ -126,14 +113,12 @@ fn tool_list_outdated_empty() {
 #[test]
 fn tool_list_outdated() {
     let context = uv_test::test_context!("3.12").with_filtered_exe_suffix();
-    let tool_dir = context.temp_dir.child("tools");
     let bin_dir = context.temp_dir.child("bin");
 
     // Install an older version of `black`.
     context
         .tool_install()
         .arg("black==24.2.0")
-        .env(EnvVars::UV_TOOL_DIR, tool_dir.as_os_str())
         .env(EnvVars::XDG_BIN_HOME, bin_dir.as_os_str())
         .assert()
         .success();
@@ -141,7 +126,6 @@ fn tool_list_outdated() {
     // With `--outdated`, the installed (older) version should be listed with the latest version.
     uv_snapshot!(context.filters(), context.tool_list()
     .arg("--outdated")
-    .env(EnvVars::UV_TOOL_DIR, tool_dir.as_os_str())
     .env(EnvVars::XDG_BIN_HOME, bin_dir.as_os_str()), @"
     exit_code: 0 (success)
     ----- stdout -----
@@ -154,13 +138,11 @@ fn tool_list_outdated() {
 #[tokio::test]
 async fn tool_list_outdated_respects_configured_index() -> Result<()> {
     let context = uv_test::test_context!("3.12").with_filtered_exe_suffix();
-    let tool_dir = context.temp_dir.child("tools");
     let bin_dir = context.temp_dir.child("bin");
 
     context
         .tool_install()
         .arg("black==24.2.0")
-        .env(EnvVars::UV_TOOL_DIR, tool_dir.as_os_str())
         .env(EnvVars::XDG_BIN_HOME, bin_dir.as_os_str())
         .assert()
         .success();
@@ -197,7 +179,6 @@ async fn tool_list_outdated_respects_configured_index() -> Result<()> {
     .arg("--outdated")
     .arg("--config-file")
     .arg(context.temp_dir.child("uv.toml").as_os_str())
-    .env(EnvVars::UV_TOOL_DIR, tool_dir.as_os_str())
     .env(EnvVars::XDG_BIN_HOME, bin_dir.as_os_str()), @"
     exit_code: 0 (success)
     ----- stdout -----
@@ -212,7 +193,6 @@ async fn tool_list_outdated_respects_configured_index() -> Result<()> {
 #[test]
 fn tool_list_outdated_respects_exclude_newer() {
     let context = uv_test::test_context!("3.12").with_filtered_exe_suffix();
-    let tool_dir = context.temp_dir.child("tools");
     let bin_dir = context.temp_dir.child("bin");
 
     // Install `black` with a persisted `exclude-newer` cutoff.
@@ -221,7 +201,6 @@ fn tool_list_outdated_respects_exclude_newer() {
         .arg("black")
         .arg("--exclude-newer")
         .arg("2024-03-25T00:00:00Z")
-        .env(EnvVars::UV_TOOL_DIR, tool_dir.as_os_str())
         .env(EnvVars::XDG_BIN_HOME, bin_dir.as_os_str())
         .assert()
         .success();
@@ -230,7 +209,6 @@ fn tool_list_outdated_respects_exclude_newer() {
     // `uv tool upgrade` would intentionally skip.
     uv_snapshot!(context.filters(), context.tool_list()
     .arg("--outdated")
-    .env(EnvVars::UV_TOOL_DIR, tool_dir.as_os_str())
     .env(EnvVars::XDG_BIN_HOME, bin_dir.as_os_str()), @"
     exit_code: 0 (success)
     ");
@@ -239,7 +217,6 @@ fn tool_list_outdated_respects_exclude_newer() {
 #[test]
 fn tool_list_outdated_recomputes_relative_exclude_newer() {
     let context = uv_test::test_context!("3.12").with_filtered_exe_suffix();
-    let tool_dir = context.temp_dir.child("tools");
     let bin_dir = context.temp_dir.child("bin");
 
     // Install `black` with a relative `exclude-newer` cutoff that initially resolves to 2024-03-01.
@@ -250,7 +227,6 @@ fn tool_list_outdated_recomputes_relative_exclude_newer() {
         .arg("3 weeks")
         .env_remove(EnvVars::UV_EXCLUDE_NEWER)
         .env(EnvVars::UV_TEST_CURRENT_TIMESTAMP, "2024-03-22T00:00:00Z")
-        .env(EnvVars::UV_TOOL_DIR, tool_dir.as_os_str())
         .env(EnvVars::XDG_BIN_HOME, bin_dir.as_os_str())
         .assert()
         .success();
@@ -260,7 +236,6 @@ fn tool_list_outdated_recomputes_relative_exclude_newer() {
     .arg("--outdated")
     .env_remove(EnvVars::UV_EXCLUDE_NEWER)
     .env(EnvVars::UV_TEST_CURRENT_TIMESTAMP, "2024-04-15T00:00:00Z")
-    .env(EnvVars::UV_TOOL_DIR, tool_dir.as_os_str())
     .env(EnvVars::XDG_BIN_HOME, bin_dir.as_os_str()), @"
     exit_code: 0 (success)
     ----- stdout -----
@@ -273,14 +248,12 @@ fn tool_list_outdated_recomputes_relative_exclude_newer() {
 #[test]
 fn tool_list_outdated_cli_exclude_newer() {
     let context = uv_test::test_context!("3.12").with_filtered_exe_suffix();
-    let tool_dir = context.temp_dir.child("tools");
     let bin_dir = context.temp_dir.child("bin");
 
     // Install an older version of `black`.
     context
         .tool_install()
         .arg("black==24.2.0")
-        .env(EnvVars::UV_TOOL_DIR, tool_dir.as_os_str())
         .env(EnvVars::XDG_BIN_HOME, bin_dir.as_os_str())
         .assert()
         .success();
@@ -291,7 +264,6 @@ fn tool_list_outdated_cli_exclude_newer() {
     .arg("--outdated")
     .arg("--exclude-newer")
     .arg("2024-03-01T00:00:00Z")
-    .env(EnvVars::UV_TOOL_DIR, tool_dir.as_os_str())
     .env(EnvVars::XDG_BIN_HOME, bin_dir.as_os_str()), @"
     exit_code: 0 (success)
     ");
@@ -300,14 +272,13 @@ fn tool_list_outdated_cli_exclude_newer() {
 #[test]
 fn tool_list_missing_receipt() {
     let context = uv_test::test_context!("3.12").with_filtered_exe_suffix();
-    let tool_dir = context.temp_dir.child("tools");
+    let tool_dir = context.temp_dir.child("data").child("tools");
     let bin_dir = context.temp_dir.child("bin");
 
     // Install `black`
     context
         .tool_install()
         .arg("black==24.2.0")
-        .env(EnvVars::UV_TOOL_DIR, tool_dir.as_os_str())
         .env(EnvVars::XDG_BIN_HOME, bin_dir.as_os_str())
         .assert()
         .success();
@@ -315,7 +286,6 @@ fn tool_list_missing_receipt() {
     fs_err::remove_file(tool_dir.join("black").join("uv-receipt.toml")).unwrap();
 
     uv_snapshot!(context.filters(), context.tool_list()
-    .env(EnvVars::UV_TOOL_DIR, tool_dir.as_os_str())
     .env(EnvVars::XDG_BIN_HOME, bin_dir.as_os_str()), @"
     exit_code: 0 (success)
     ----- stderr -----
@@ -329,14 +299,13 @@ fn tool_list_bad_environment() -> Result<()> {
         .with_filtered_python_names()
         .with_filtered_virtualenv_bin()
         .with_filtered_exe_suffix();
-    let tool_dir = context.temp_dir.child("tools");
+    let tool_dir = context.temp_dir.child("data").child("tools");
     let bin_dir = context.temp_dir.child("bin");
 
     // Install `black`
     context
         .tool_install()
         .arg("black==24.2.0")
-        .env(EnvVars::UV_TOOL_DIR, tool_dir.as_os_str())
         .env(EnvVars::XDG_BIN_HOME, bin_dir.as_os_str())
         .assert()
         .success();
@@ -345,7 +314,6 @@ fn tool_list_bad_environment() -> Result<()> {
     context
         .tool_install()
         .arg("ruff==0.3.4")
-        .env(EnvVars::UV_TOOL_DIR, tool_dir.as_os_str())
         .env(EnvVars::XDG_BIN_HOME, bin_dir.as_os_str())
         .assert()
         .success();
@@ -358,7 +326,6 @@ fn tool_list_bad_environment() -> Result<()> {
         context.filters(),
         context
             .tool_list()
-            .env(EnvVars::UV_TOOL_DIR, tool_dir.as_os_str())
             .env(EnvVars::XDG_BIN_HOME, bin_dir.as_os_str()),
         @"
     exit_code: 0 (success)
@@ -377,14 +344,13 @@ fn tool_list_bad_environment() -> Result<()> {
 #[test]
 fn tool_list_deprecated() -> Result<()> {
     let context = uv_test::test_context!("3.12").with_filtered_exe_suffix();
-    let tool_dir = context.temp_dir.child("tools");
+    let tool_dir = context.temp_dir.child("data").child("tools");
     let bin_dir = context.temp_dir.child("bin");
 
     // Install `black`
     context
         .tool_install()
         .arg("black==24.2.0")
-        .env(EnvVars::UV_TOOL_DIR, tool_dir.as_os_str())
         .env(EnvVars::XDG_BIN_HOME, bin_dir.as_os_str())
         .assert()
         .success();
@@ -421,7 +387,6 @@ fn tool_list_deprecated() -> Result<()> {
 
     // Ensure that we can still list the tool.
     uv_snapshot!(context.filters(), context.tool_list()
-    .env(EnvVars::UV_TOOL_DIR, tool_dir.as_os_str())
     .env(EnvVars::XDG_BIN_HOME, bin_dir.as_os_str()), @"
     exit_code: 0 (success)
     ----- stdout -----
@@ -445,7 +410,6 @@ fn tool_list_deprecated() -> Result<()> {
 
     // Ensure that listing fails.
     uv_snapshot!(context.filters(), context.tool_list()
-    .env(EnvVars::UV_TOOL_DIR, tool_dir.as_os_str())
     .env(EnvVars::XDG_BIN_HOME, bin_dir.as_os_str()), @"
     exit_code: 0 (success)
     ----- stderr -----
@@ -458,14 +422,12 @@ fn tool_list_deprecated() -> Result<()> {
 #[test]
 fn tool_list_show_version_specifiers() {
     let context = uv_test::test_context!("3.12").with_filtered_exe_suffix();
-    let tool_dir = context.temp_dir.child("tools");
     let bin_dir = context.temp_dir.child("bin");
 
     // Install `black` with a version specifier
     context
         .tool_install()
         .arg("black<24.3.0")
-        .env(EnvVars::UV_TOOL_DIR, tool_dir.as_os_str())
         .env(EnvVars::XDG_BIN_HOME, bin_dir.as_os_str())
         .assert()
         .success();
@@ -474,13 +436,11 @@ fn tool_list_show_version_specifiers() {
     context
         .tool_install()
         .arg("flask")
-        .env(EnvVars::UV_TOOL_DIR, tool_dir.as_os_str())
         .env(EnvVars::XDG_BIN_HOME, bin_dir.as_os_str())
         .assert()
         .success();
 
     uv_snapshot!(context.filters(), context.tool_list().arg("--show-version-specifiers")
-    .env(EnvVars::UV_TOOL_DIR, tool_dir.as_os_str())
     .env(EnvVars::XDG_BIN_HOME, bin_dir.as_os_str()), @"
     exit_code: 0 (success)
     ----- stdout -----
@@ -493,7 +453,6 @@ fn tool_list_show_version_specifiers() {
 
     // with paths
     uv_snapshot!(context.filters(), context.tool_list().arg("--show-version-specifiers").arg("--show-paths")
-    .env(EnvVars::UV_TOOL_DIR, tool_dir.as_os_str())
     .env(EnvVars::XDG_BIN_HOME, bin_dir.as_os_str()), @"
     exit_code: 0 (success)
     ----- stdout -----
@@ -508,14 +467,12 @@ fn tool_list_show_version_specifiers() {
 #[test]
 fn tool_list_show_with() {
     let context = uv_test::test_context!("3.12").with_filtered_exe_suffix();
-    let tool_dir = context.temp_dir.child("tools");
     let bin_dir = context.temp_dir.child("bin");
 
     // Install `black` without additional requirements
     context
         .tool_install()
         .arg("black==24.2.0")
-        .env(EnvVars::UV_TOOL_DIR, tool_dir.as_os_str())
         .env(EnvVars::XDG_BIN_HOME, bin_dir.as_os_str())
         .assert()
         .success();
@@ -528,7 +485,6 @@ fn tool_list_show_with() {
         .arg("requests")
         .arg("--with")
         .arg("black==24.2.0")
-        .env(EnvVars::UV_TOOL_DIR, tool_dir.as_os_str())
         .env(EnvVars::XDG_BIN_HOME, bin_dir.as_os_str())
         .assert()
         .success();
@@ -539,14 +495,12 @@ fn tool_list_show_with() {
         .arg("ruff==0.3.4")
         .arg("--with")
         .arg("requests")
-        .env(EnvVars::UV_TOOL_DIR, tool_dir.as_os_str())
         .env(EnvVars::XDG_BIN_HOME, bin_dir.as_os_str())
         .assert()
         .success();
 
     // Test with --show-with
     uv_snapshot!(context.filters(), context.tool_list().arg("--show-with")
-    .env(EnvVars::UV_TOOL_DIR, tool_dir.as_os_str())
     .env(EnvVars::XDG_BIN_HOME, bin_dir.as_os_str()), @"
     exit_code: 0 (success)
     ----- stdout -----
@@ -561,7 +515,6 @@ fn tool_list_show_with() {
 
     // Test with both --show-with and --show-paths
     uv_snapshot!(context.filters(), context.tool_list().arg("--show-with").arg("--show-paths")
-    .env(EnvVars::UV_TOOL_DIR, tool_dir.as_os_str())
     .env(EnvVars::XDG_BIN_HOME, bin_dir.as_os_str()), @"
     exit_code: 0 (success)
     ----- stdout -----
@@ -576,7 +529,6 @@ fn tool_list_show_with() {
 
     // Test with both --show-with and --show-version-specifiers
     uv_snapshot!(context.filters(), context.tool_list().arg("--show-with").arg("--show-version-specifiers")
-    .env(EnvVars::UV_TOOL_DIR, tool_dir.as_os_str())
     .env(EnvVars::XDG_BIN_HOME, bin_dir.as_os_str()), @"
     exit_code: 0 (success)
     ----- stdout -----
@@ -594,7 +546,6 @@ fn tool_list_show_with() {
     .arg("--show-with")
     .arg("--show-version-specifiers")
     .arg("--show-paths")
-    .env(EnvVars::UV_TOOL_DIR, tool_dir.as_os_str())
     .env(EnvVars::XDG_BIN_HOME, bin_dir.as_os_str()), @"
     exit_code: 0 (success)
     ----- stdout -----
@@ -611,14 +562,12 @@ fn tool_list_show_with() {
 #[test]
 fn tool_list_show_extras() {
     let context = uv_test::test_context!("3.12").with_filtered_exe_suffix();
-    let tool_dir = context.temp_dir.child("tools");
     let bin_dir = context.temp_dir.child("bin");
 
     // Install `black` without extras
     context
         .tool_install()
         .arg("black==24.2.0")
-        .env(EnvVars::UV_TOOL_DIR, tool_dir.as_os_str())
         .env(EnvVars::XDG_BIN_HOME, bin_dir.as_os_str())
         .assert()
         .success();
@@ -629,14 +578,12 @@ fn tool_list_show_extras() {
         .arg("flask[async,dotenv]")
         .arg("--with")
         .arg("requests")
-        .env(EnvVars::UV_TOOL_DIR, tool_dir.as_os_str())
         .env(EnvVars::XDG_BIN_HOME, bin_dir.as_os_str())
         .assert()
         .success();
 
     // Test with --show-extras only
     uv_snapshot!(context.filters(), context.tool_list().arg("--show-extras")
-    .env(EnvVars::UV_TOOL_DIR, tool_dir.as_os_str())
     .env(EnvVars::XDG_BIN_HOME, bin_dir.as_os_str()), @"
     exit_code: 0 (success)
     ----- stdout -----
@@ -649,7 +596,6 @@ fn tool_list_show_extras() {
 
     // Test with both --show-extras and --show-with
     uv_snapshot!(context.filters(), context.tool_list().arg("--show-extras").arg("--show-with")
-    .env(EnvVars::UV_TOOL_DIR, tool_dir.as_os_str())
     .env(EnvVars::XDG_BIN_HOME, bin_dir.as_os_str()), @"
     exit_code: 0 (success)
     ----- stdout -----
@@ -662,7 +608,6 @@ fn tool_list_show_extras() {
 
     // Test with --show-extras and --show-paths
     uv_snapshot!(context.filters(), context.tool_list().arg("--show-extras").arg("--show-paths")
-    .env(EnvVars::UV_TOOL_DIR, tool_dir.as_os_str())
     .env(EnvVars::XDG_BIN_HOME, bin_dir.as_os_str()), @"
     exit_code: 0 (success)
     ----- stdout -----
@@ -675,7 +620,6 @@ fn tool_list_show_extras() {
 
     // Test with --show-extras and --show-version-specifiers
     uv_snapshot!(context.filters(), context.tool_list().arg("--show-extras").arg("--show-version-specifiers")
-    .env(EnvVars::UV_TOOL_DIR, tool_dir.as_os_str())
     .env(EnvVars::XDG_BIN_HOME, bin_dir.as_os_str()), @"
     exit_code: 0 (success)
     ----- stdout -----
@@ -692,7 +636,6 @@ fn tool_list_show_extras() {
     .arg("--show-with")
     .arg("--show-version-specifiers")
     .arg("--show-paths")
-    .env(EnvVars::UV_TOOL_DIR, tool_dir.as_os_str())
     .env(EnvVars::XDG_BIN_HOME, bin_dir.as_os_str()), @"
     exit_code: 0 (success)
     ----- stdout -----
@@ -707,21 +650,18 @@ fn tool_list_show_extras() {
 #[test]
 fn tool_list_show_python() {
     let context = uv_test::test_context!("3.12").with_filtered_exe_suffix();
-    let tool_dir = context.temp_dir.child("tools");
     let bin_dir = context.temp_dir.child("bin");
 
     // Install `black` with python 3.12
     context
         .tool_install()
         .arg("black==24.2.0")
-        .env(EnvVars::UV_TOOL_DIR, tool_dir.as_os_str())
         .env(EnvVars::XDG_BIN_HOME, bin_dir.as_os_str())
         .assert()
         .success();
 
     // Test with --show-python
     uv_snapshot!(context.filters(), context.tool_list().arg("--show-python")
-    .env(EnvVars::UV_TOOL_DIR, tool_dir.as_os_str())
     .env(EnvVars::XDG_BIN_HOME, bin_dir.as_os_str()), @"
     exit_code: 0 (success)
     ----- stdout -----
@@ -734,14 +674,12 @@ fn tool_list_show_python() {
 #[test]
 fn tool_list_show_all() {
     let context = uv_test::test_context!("3.12").with_filtered_exe_suffix();
-    let tool_dir = context.temp_dir.child("tools");
     let bin_dir = context.temp_dir.child("bin");
 
     // Install `black` without extras
     context
         .tool_install()
         .arg("black==24.2.0")
-        .env(EnvVars::UV_TOOL_DIR, tool_dir.as_os_str())
         .env(EnvVars::XDG_BIN_HOME, bin_dir.as_os_str())
         .assert()
         .success();
@@ -752,7 +690,6 @@ fn tool_list_show_all() {
         .arg("flask[async,dotenv]")
         .arg("--with")
         .arg("requests")
-        .env(EnvVars::UV_TOOL_DIR, tool_dir.as_os_str())
         .env(EnvVars::XDG_BIN_HOME, bin_dir.as_os_str())
         .assert()
         .success();
@@ -764,7 +701,6 @@ fn tool_list_show_all() {
     .arg("--show-version-specifiers")
     .arg("--show-paths")
     .arg("--show-python")
-    .env(EnvVars::UV_TOOL_DIR, tool_dir.as_os_str())
     .env(EnvVars::XDG_BIN_HOME, bin_dir.as_os_str()), @"
     exit_code: 0 (success)
     ----- stdout -----

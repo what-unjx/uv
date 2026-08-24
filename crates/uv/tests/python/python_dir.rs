@@ -1,18 +1,13 @@
-use assert_fs::fixture::PathChild;
-
-use uv_static::EnvVars;
-
 use uv_test::uv_snapshot;
 
 #[test]
 fn python_dir() {
     let context = uv_test::test_context!("3.12");
 
-    let python_dir = context.temp_dir.child("python");
-    uv_snapshot!(context.filters(), context.python_dir()
-    .env(EnvVars::UV_PYTHON_INSTALL_DIR, python_dir.as_os_str()), @"
+    // [第3次修正] 托管 Python 目录固定为 UV_HOME/data/python
+    uv_snapshot!(context.filters(), context.python_dir(), @"
     exit_code: 0 (success)
     ----- stdout -----
-    [TEMP_DIR]/python
+    [TEMP_DIR]/data/python
     ");
 }

@@ -229,7 +229,7 @@ mod tests {
         PythonDownloads, PythonNotFound, PythonRequest, PythonSource, PythonVersion,
         find_all_python_installations, find_python_installations,
         implementation::ImplementationName, installation::PythonInstallation,
-        managed::ManagedPythonInstallations, virtualenv::virtualenv_python_executable,
+        virtualenv::virtualenv_python_executable,
     };
     use crate::{
         PythonPreference,
@@ -241,7 +241,6 @@ mod tests {
     struct TestContext {
         tempdir: TempDir,
         cache: Cache,
-        installations: ManagedPythonInstallations,
         search_path: Option<Vec<PathBuf>>,
         workdir: ChildPath,
     }
@@ -255,7 +254,6 @@ mod tests {
             Ok(Self {
                 tempdir,
                 cache: Cache::temp()?,
-                installations: ManagedPythonInstallations::temp()?,
                 search_path: None,
                 workdir,
             })
@@ -307,11 +305,9 @@ mod tests {
                 // Keep discovery hermetic by disabling registry-based sources unless a test opts in.
                 (EnvVars::UV_PYTHON_NO_REGISTRY, Some(OsStr::new("1"))),
                 (EnvVars::PATH, path.as_deref()),
-                // Use the temporary python directory
-                (
-                    EnvVars::UV_PYTHON_INSTALL_DIR,
-                    Some(self.installations.root().as_os_str()),
-                ),
+                // [第3次修正] 收敛到 UV_HOME：托管 Python 目录固定为 UV_HOME/data/python，
+                // 指向临时目录使发现逻辑正常执行（目录本身为空）
+                (EnvVars::UV_HOME, Some(self.tempdir.path().as_os_str())),
                 // Set a working directory
                 (EnvVars::PWD, Some(self.workdir.path().as_os_str())),
             ]);

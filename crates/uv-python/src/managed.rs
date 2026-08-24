@@ -21,6 +21,7 @@ use uv_fs::{
 };
 use uv_platform::{Error as PlatformError, Os};
 use uv_platform::{LibcDetectionError, Platform};
+#[cfg(all(test, unix))]
 use uv_state::{StateBucket, StateStore};
 use uv_static::EnvVars;
 use uv_trampoline_builder::{Launcher, LauncherKind, WindowMode, windows_python_launcher};
@@ -122,25 +123,21 @@ impl ManagedPythonInstallations {
     ///
     /// 1. `UV_HOME/data/python/` if `uv_home` is set.
     /// 2. The specific Python directory passed via the `install_dir` argument.
-    /// 3. The specific Python directory specified with the `UV_PYTHON_INSTALL_DIR` environment variable.
-    /// 4. A directory in the system-appropriate user-level data directory, e.g., `~/.local/uv/python`.
-    /// 5. A directory in the local data directory, e.g., `./.uv/python`.
     ///
-    /// [第1次试飞后修正]
-    /// 新增 uv_home 参数；当 UV_HOME 设置时，Python 安装在 UV_HOME/data/python/ 下
+    /// Errors if neither is provided.
+    ///
+    /// [第3次修正]
+    /// 收敛到 UV_HOME：删除 `UV_PYTHON_INSTALL_DIR` 环境变量与默认目录兜底，未配置时直接报错
     pub fn from_settings(install_dir: Option<PathBuf>, uv_home: Option<PathBuf>) -> Result<Self, Error> {
         if let Some(uv_home) = uv_home {
             Ok(Self::from_path(uv_home.join("data").join("python")))
         } else if let Some(install_dir) = install_dir {
             Ok(Self::from_path(install_dir))
-        } else if let Some(install_dir) =
-            std::env::var_os(EnvVars::UV_PYTHON_INSTALL_DIR).filter(|s| !s.is_empty())
-        {
-            Ok(Self::from_path(install_dir))
         } else {
-            Ok(Self::from_path(
-                StateStore::from_settings(None, None)?.bucket(StateBucket::ManagedPython),
-            ))
+            Err(Error::Io(io::Error::new(
+                io::ErrorKind::InvalidInput,
+                "UV_HOME is not set; set the `UV_HOME` environment variable or add `home` to `uv.toml`",
+            )))
         }
     }
 
@@ -248,11 +245,12 @@ impl ManagedPythonInstallations {
     }
 
     /// Iterate over Python installations that support the current platform.
-    pub(crate) fn find_matching_current_platform()
-    -> Result<impl DoubleEndedIterator<Item = ManagedPythonInstallation> + use<>, Error> {
+    pub(crate) fn find_matching_current_platform(
+        &self,
+    ) -> Result<impl DoubleEndedIterator<Item = ManagedPythonInstallation> + use<>, Error> {
         let platform = Platform::from_env()?;
 
-        let iter = Self::from_settings(None, None)?
+        let iter = self
             .find_all()?
             .filter(move |installation| {
                 if !platform.supports(installation.platform()) {
@@ -276,7 +274,8 @@ impl ManagedPythonInstallations {
         version: &'a PythonVersion,
     ) -> Result<impl DoubleEndedIterator<Item = ManagedPythonInstallation> + 'a, Error> {
         let request = VersionRequest::from(version);
-        Ok(Self::find_matching_current_platform()?
+        Ok(self
+            .find_matching_current_platform()?
             .filter(move |installation| request.matches_installation_key(installation.key())))
     }
 
@@ -364,7 +363,11 @@ impl ManagedPythonInstallation {
     ///
     /// Returns `None` if the interpreter is not a managed installation.
     pub fn try_from_interpreter(interpreter: &Interpreter) -> Option<Self> {
-        let managed_root = ManagedPythonInstallations::from_settings(None, None).ok()?;
+        // [第3次修正] 收敛到 UV_HOME：从环境变量读取 uv_home 后传入
+        let uv_home = std::env::var_os(EnvVars::UV_HOME)
+            .filter(|s| !s.is_empty())
+            .map(PathBuf::from);
+        let managed_root = ManagedPythonInstallations::from_settings(None, uv_home).ok()?;
         let root = managed_root.absolute_root().ok()?;
 
         // Canonicalize both paths to handle Windows path format differences
@@ -995,15 +998,17 @@ impl fmt::Display for ManagedPythonInstallation {
 
 /// Find the directory to install Python executables into.
 ///
-/// [第1次试飞后修正]
-/// 新增 uv_home 参数；当 UV_HOME 设置时，可执行文件存储在 UV_HOME/bin/ 下
+/// Returns `UV_HOME/bin/` if `uv_home` is set, and errors otherwise.
+///
+/// [第3次修正]
+/// 收敛到 UV_HOME：删除 `UV_PYTHON_BIN_DIR` 环境变量兜底，未配置 `uv_home` 时直接报错
 pub fn python_executable_dir(uv_home: Option<PathBuf>) -> Result<PathBuf, Error> {
-    if let Some(uv_home) = uv_home {
-        Ok(uv_home.join("bin"))
-    } else {
-        uv_dirs::user_executable_directory(Some(EnvVars::UV_PYTHON_BIN_DIR))
-            .ok_or(Error::NoExecutableDirectory)
-    }
+    uv_home.map(|home| home.join("bin")).ok_or_else(|| {
+        Error::Io(io::Error::new(
+            io::ErrorKind::InvalidInput,
+            "UV_HOME is not set; set the `UV_HOME` environment variable or add `home` to `uv.toml`",
+        ))
+    })
 }
 
 #[cfg(test)]
@@ -1356,23 +1361,21 @@ mod tests {
         // Create mock installation directories
         fs::create_dir(temp_dir.path().join(format!("cpython-3.10.0-{platform}"))).unwrap();
 
-        temp_env::with_var(
-            uv_static::EnvVars::UV_PYTHON_INSTALL_DIR,
-            Some(temp_dir.path()),
-            || {
-                let installations = ManagedPythonInstallations::from_settings(None, None).unwrap();
+        let installations = ManagedPythonInstallations::from_settings(
+            Some(temp_dir.path().to_path_buf()),
+            None,
+        )
+        .unwrap();
 
-                // Version 3.1 should NOT match 3.10
-                let v3_1 = PythonVersion::from_str("3.1").unwrap();
-                let matched: Vec<_> = installations.find_version(&v3_1).unwrap().collect();
-                assert_eq!(matched.len(), 0);
+        // Version 3.1 should NOT match 3.10
+        let v3_1 = PythonVersion::from_str("3.1").unwrap();
+        let matched: Vec<_> = installations.find_version(&v3_1).unwrap().collect();
+        assert_eq!(matched.len(), 0);
 
-                // Check that 3.10 matches
-                let v3_10 = PythonVersion::from_str("3.10").unwrap();
-                let matched: Vec<_> = installations.find_version(&v3_10).unwrap().collect();
-                assert_eq!(matched.len(), 1);
-            },
-        );
+        // Check that 3.10 matches
+        let v3_10 = PythonVersion::from_str("3.10").unwrap();
+        let matched: Vec<_> = installations.find_version(&v3_10).unwrap().collect();
+        assert_eq!(matched.len(), 1);
     }
 
     #[test]
@@ -1381,16 +1384,15 @@ mod tests {
         let workdir = temp_dir.path().join("workdir");
         fs::create_dir(&workdir).unwrap();
 
-        temp_env::with_vars(
-            [
-                (
-                    uv_static::EnvVars::UV_PYTHON_INSTALL_DIR,
-                    Some(std::ffi::OsStr::new(".python-installs")),
-                ),
-                (uv_static::EnvVars::PWD, Some(workdir.as_os_str())),
-            ],
+        temp_env::with_var(
+            uv_static::EnvVars::PWD,
+            Some(workdir.as_os_str()),
             || {
-                let installations = ManagedPythonInstallations::from_settings(None, None).unwrap();
+                let installations = ManagedPythonInstallations::from_settings(
+                    Some(std::path::PathBuf::from(".python-installs")),
+                    None,
+                )
+                .unwrap();
                 assert_eq!(
                     installations.absolute_root().unwrap(),
                     workdir.join(".python-installs")

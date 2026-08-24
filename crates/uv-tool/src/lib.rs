@@ -9,15 +9,12 @@ use thiserror::Error;
 use tracing::{debug, warn};
 
 use uv_cache::Cache;
-use uv_dirs::user_executable_directory;
 use uv_fs::{LockedFile, LockedFileError, LockedFileMode, Simplified};
 use uv_install_wheel::read_record;
 use uv_installer::SitePackages;
 use uv_normalize::{InvalidNameError, PackageName};
 use uv_pep440::Version;
 use uv_python::{BrokenLink, Interpreter, PythonEnvironment};
-use uv_state::{StateBucket, StateStore};
-use uv_static::EnvVars;
 
 pub(crate) use receipt::ToolReceipt;
 pub use tool::{Tool, ToolEntrypoint};
@@ -126,24 +123,18 @@ impl InstalledTools {
 
     /// Create a new [`InstalledTools`] from settings.
     ///
-    /// Prefer, in order:
+    /// Returns `UV_HOME/data/tools/` if `uv_home` is set, and errors otherwise.
     ///
-    /// 1. `UV_HOME/data/tools/` if `uv_home` is set
-    /// 2. The specific tool directory specified by the user, i.e., `UV_TOOL_DIR`
-    /// 3. A directory in the system-appropriate user-level data directory, e.g., `~/.local/uv/tools`
-    /// 4. A directory in the local data directory, e.g., `./.uv/tools`
-    ///
-    /// [第1次试飞后修正]
-    /// 新增 uv_home 参数；当 UV_HOME 设置时，工具存储在 UV_HOME/data/tools/ 下
+    /// [第3次修正]
+    /// 收敛到 UV_HOME：删除 `UV_TOOL_DIR` 环境变量与默认目录兜底，未配置 `uv_home` 时直接报错
     pub fn from_settings(uv_home: Option<PathBuf>) -> Result<Self, Error> {
         if let Some(uv_home) = uv_home {
             Ok(Self::from_path(uv_home.join("data").join("tools")))
-        } else if let Some(tool_dir) = std::env::var_os(EnvVars::UV_TOOL_DIR).filter(|s| !s.is_empty()) {
-            Ok(Self::from_path(std::path::absolute(tool_dir)?))
         } else {
-            Ok(Self::from_path(
-                StateStore::from_settings(None, None)?.bucket(StateBucket::Tools),
-            ))
+            Err(Error::Io(io::Error::new(
+                io::ErrorKind::InvalidInput,
+                "UV_HOME is not set; set the `UV_HOME` environment variable or add `home` to `uv.toml`",
+            )))
         }
     }
 
@@ -390,14 +381,17 @@ impl InstalledTools {
 
 /// Find the tool executable directory.
 ///
-/// [第1次试飞后修正]
-/// 新增 uv_home 参数；当 UV_HOME 设置时，可执行文件存储在 UV_HOME/bin/ 下
+/// Returns `UV_HOME/bin/` if `uv_home` is set, and errors otherwise.
+///
+/// [第3次修正]
+/// 收敛到 UV_HOME：删除 `UV_TOOL_BIN_DIR` 环境变量兜底，未配置 `uv_home` 时直接报错
 pub fn tool_executable_dir(uv_home: Option<PathBuf>) -> Result<PathBuf, Error> {
-    if let Some(uv_home) = uv_home {
-        Ok(uv_home.join("bin"))
-    } else {
-        user_executable_directory(Some(EnvVars::UV_TOOL_BIN_DIR)).ok_or(Error::NoExecutableDirectory)
-    }
+    uv_home.map(|home| home.join("bin")).ok_or_else(|| {
+        Error::Io(io::Error::new(
+            io::ErrorKind::InvalidInput,
+            "UV_HOME is not set; set the `UV_HOME` environment variable or add `home` to `uv.toml`",
+        ))
+    })
 }
 
 /// Find the `.dist-info` directory for a package in an environment.

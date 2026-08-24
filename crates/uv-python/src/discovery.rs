@@ -386,15 +386,19 @@ fn python_executables_from_installed<'a>(
     platform: PlatformRequest,
     preference: PythonPreference,
 ) -> Box<dyn Iterator<Item = Result<PythonExecutableGroup, Error>> + 'a> {
+    // [第3次修正] 收敛到 UV_HOME：从环境变量读取 uv_home 后传入
+    let uv_home = env::var_os(EnvVars::UV_HOME)
+        .filter(|s| !s.is_empty())
+        .map(PathBuf::from);
     let from_managed_installations = iter::once_with(move || {
-        ManagedPythonInstallations::from_settings(None, None)
+        ManagedPythonInstallations::from_settings(None, uv_home)
             .map_err(Error::from)
             .and_then(|installed_installations| {
                 debug!(
                     "Searching for managed installations at `{}`",
                     installed_installations.root().user_display()
                 );
-                let installations = ManagedPythonInstallations::find_matching_current_platform()?;
+                let installations = installed_installations.find_matching_current_platform()?;
 
                 let build_versions = python_build_versions_from_env()?;
 
