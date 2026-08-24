@@ -3,7 +3,6 @@ use std::env::consts::ARCH;
 use std::fmt::{Display, Formatter};
 use std::path::{Path, PathBuf};
 use std::process::{Command, ExitStatus};
-use std::str::FromStr;
 use std::sync::OnceLock;
 use std::{env, io};
 
@@ -30,10 +29,9 @@ use uv_pypi_types::{ResolverMarkerEnvironment, Scheme};
 use uv_static::EnvVars;
 
 use crate::implementation::LenientImplementationName;
-use crate::managed::ManagedPythonInstallations;
 use crate::pointer_size::PointerSize;
 use crate::{
-    Prefix, PyVenvConfiguration, PythonInstallationKey, PythonVariant, PythonVersion, Target,
+    Prefix, PyVenvConfiguration, PythonInstallationKey, PythonVariant, Target,
     VersionRequest, VirtualEnvironment,
 };
 
@@ -296,56 +294,6 @@ impl Interpreter {
         self.prefix.is_some()
     }
 
-    /// Returns `true` if this interpreter is managed by uv.
-    ///
-    /// Returns `false` if we cannot determine the path of the uv managed Python interpreters.
-    pub(crate) fn is_managed(&self) -> bool {
-        if let Ok(test_managed) =
-            std::env::var(uv_static::EnvVars::UV_INTERNAL__TEST_PYTHON_MANAGED)
-        {
-            // During testing, we collect interpreters into an artificial search path and need to
-            // be able to mock whether an interpreter is managed or not.
-            return test_managed.split_ascii_whitespace().any(|item| {
-                let version = <PythonVersion as std::str::FromStr>::from_str(item).expect(
-                    "`UV_INTERNAL__TEST_PYTHON_MANAGED` items should be valid Python versions",
-                );
-                if version.patch().is_some() {
-                    version.version() == self.python_version()
-                } else {
-                    (version.major(), version.minor()) == self.python_tuple()
-                }
-            });
-        }
-
-        // [第3次修正] 收敛到 UV_HOME：从环境变量读取 uv_home 后传入
-        let uv_home = env::var_os(EnvVars::UV_HOME)
-            .filter(|s| !s.is_empty())
-            .map(PathBuf::from);
-        let Ok(installations) = ManagedPythonInstallations::from_settings(None, uv_home) else {
-            return false;
-        };
-        let Ok(root) = installations.absolute_root() else {
-            return false;
-        };
-        let sys_base_prefix = dunce::canonicalize(&self.sys_base_prefix)
-            .unwrap_or_else(|_| self.sys_base_prefix.clone());
-        let root = dunce::canonicalize(&root).unwrap_or(root);
-
-        let Ok(suffix) = sys_base_prefix.strip_prefix(&root) else {
-            return false;
-        };
-
-        let Some(first_component) = suffix.components().next() else {
-            return false;
-        };
-
-        let Some(name) = first_component.as_os_str().to_str() else {
-            return false;
-        };
-
-        PythonInstallationKey::from_str(name).is_ok()
-    }
-
     /// Returns `Some` if the environment is externally managed, optionally including an error
     /// message from the `EXTERNALLY-MANAGED` file.
     ///
@@ -588,7 +536,7 @@ impl Interpreter {
     // set `PYTHON_BUILD_STANDALONE=1`.`
     #[cfg(windows)]
     pub fn is_standalone(&self) -> bool {
-        self.standalone || (self.is_managed() && self.markers().implementation_name() == "cpython")
+        self.standalone
     }
 
     /// Return the [`Layout`] environment used to install wheels into this interpreter.

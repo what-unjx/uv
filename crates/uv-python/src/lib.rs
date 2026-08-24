@@ -7,9 +7,8 @@ use uv_static::EnvVars;
 #[cfg(all(test, unix))]
 use crate::discovery::find_python_installations;
 pub use crate::discovery::{
-    EnvironmentPreference, Error as DiscoveryError, PythonDownloads, PythonNotFound,
-    PythonPreference, PythonRequest, PythonSource, PythonVariant, VersionRequest,
-    find_all_python_installations,
+    EnvironmentPreference, Error as DiscoveryError, PythonNotFound, PythonPreference,
+    PythonRequest, PythonSource, PythonVariant, VersionRequest, find_all_python_installations,
 };
 pub use crate::environment::{InvalidEnvironmentKind, PythonEnvironment};
 pub use crate::implementation::{ImplementationName, LenientImplementationName};
@@ -21,7 +20,7 @@ pub use crate::interpreter::{
 };
 pub use crate::pointer_size::PointerSize;
 pub use crate::prefix::Prefix;
-pub use crate::python_version::{BuildVersionError, PythonVersion};
+pub use crate::python_version::PythonVersion;
 pub use crate::target::Target;
 pub use crate::version_files::{
     ConfigDiscovery, DiscoveryOptions as VersionFileDiscoveryOptions,
@@ -31,29 +30,20 @@ pub use crate::version_files::{
 pub use crate::virtualenv::{Error as VirtualEnvError, PyVenvConfiguration, VirtualEnvironment};
 
 mod discovery;
-pub mod downloads;
 mod environment;
 mod implementation;
 mod installation;
 mod interpreter;
-pub mod macos_dylib;
-pub mod managed;
 #[cfg(windows)]
 mod microsoft_store;
 mod pointer_size;
 mod prefix;
 mod python_version;
-mod sysconfig;
 mod target;
 mod version_files;
 mod virtualenv;
 #[cfg(windows)]
 pub mod windows_registry;
-
-#[cfg(windows)]
-pub(crate) const COMPANY_KEY: &str = "Astral";
-#[cfg(windows)]
-pub(crate) const COMPANY_DISPLAY_NAME: &str = "Astral Software Inc.";
 
 #[cfg(not(test))]
 fn current_dir() -> Result<std::path::PathBuf, std::io::Error> {
@@ -83,12 +73,6 @@ pub enum Error {
     Discovery(#[from] discovery::Error),
 
     #[error(transparent)]
-    ManagedPython(#[from] managed::Error),
-
-    #[error(transparent)]
-    Download(#[from] downloads::Error),
-
-    #[error(transparent)]
     ClientBuild(#[from] uv_client::ClientBuildError),
 
     // TODO(zanieb) We might want to ensure this is always wrapped in another type
@@ -96,7 +80,7 @@ pub enum Error {
     KeyError(#[from] installation::PythonInstallationKeyError),
 
     #[error("{}", .0)]
-    MissingPython(PythonNotFound, Option<Box<MissingPythonHint>>),
+    MissingPython(PythonNotFound),
 
     #[error(transparent)]
     MissingEnvironment(#[from] environment::EnvironmentNotFound),
@@ -108,94 +92,18 @@ pub enum Error {
     RetryParsing(#[from] uv_client::RetryParsingError),
 }
 
-/// The reason a managed Python download could not be used.
-#[derive(Debug)]
-pub enum MissingPythonHint {
-    /// uv's embedded download metadata may be stale.
-    RequiresUpdate,
-    /// Downloads are set to `manual`.
-    DownloadsManual(PythonRequest),
-    /// Downloads are set to `never`.
-    DownloadsNever(PythonRequest),
-    /// Python preference is set to `only-system`.
-    PreferenceOnlySystem(PythonRequest),
-    /// uv is in offline mode.
-    Offline(PythonRequest),
-}
-
-impl MissingPythonHint {
-    fn for_request(request: &PythonRequest) -> String {
-        match request {
-            PythonRequest::Default | PythonRequest::Any => String::new(),
-            _ => format!(" for {request}"),
-        }
-    }
-}
-
-impl std::fmt::Display for MissingPythonHint {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            Self::RequiresUpdate => {
-                write!(
-                    f,
-                    "uv embeds available Python downloads and may require an update to install new versions. Consider retrying on a newer version of uv."
-                )
-            }
-            Self::DownloadsManual(request) => {
-                write!(
-                    f,
-                    "A managed Python download is available{}, but Python downloads are set to 'manual', use `uv python install {}` to install the required version",
-                    Self::for_request(request),
-                    request.to_canonical_string(),
-                )
-            }
-            Self::DownloadsNever(request) => {
-                write!(
-                    f,
-                    "A managed Python download is available{}, but Python downloads are set to 'never'",
-                    Self::for_request(request),
-                )
-            }
-            Self::PreferenceOnlySystem(request) => {
-                write!(
-                    f,
-                    "A managed Python download is available{}, but the Python preference is set to 'only system'",
-                    Self::for_request(request),
-                )
-            }
-            Self::Offline(request) => {
-                write!(
-                    f,
-                    "A managed Python download is available{}, but uv is set to offline mode",
-                    Self::for_request(request),
-                )
-            }
-        }
-    }
-}
-
 impl uv_errors::Hint for Error {
     fn hints(&self) -> uv_errors::Hints<'_> {
         match self {
-            Self::MissingPython(_, Some(hint)) => uv_errors::Hints::from(hint.to_string()),
             Self::Discovery(err) => err.hints(),
             _ => uv_errors::Hints::none(),
         }
     }
 }
 
-impl Error {
-    fn with_hint(self, hint: MissingPythonHint) -> Self {
-        match self {
-            Self::MissingPython(err, _) => Self::MissingPython(err, Some(Box::new(hint))),
-            _ => self,
-        }
-    }
-}
-
 impl From<PythonNotFound> for Error {
     fn from(err: PythonNotFound) -> Self {
-        Self::MissingPython(err, None)
+        Self::MissingPython(err)
     }
 }
 
@@ -219,23 +127,19 @@ mod tests {
     use indoc::{formatdoc, indoc};
     use temp_env::with_vars;
     use test_log::test;
-    use uv_client::BaseClientBuilder;
     use uv_preview::PreviewFeature;
     use uv_static::EnvVars;
 
     use uv_cache::Cache;
 
     use crate::{
-        PythonDownloads, PythonNotFound, PythonRequest, PythonSource, PythonVersion,
-        find_all_python_installations, find_python_installations,
-        implementation::ImplementationName, installation::PythonInstallation,
-        virtualenv::virtualenv_python_executable,
+        PythonNotFound, PythonRequest, PythonSource, PythonVersion, find_all_python_installations,
+        find_python_installations, implementation::ImplementationName,
+        installation::PythonInstallation, virtualenv::virtualenv_python_executable,
     };
     use crate::{
         PythonPreference,
-        discovery::{
-            self, EnvironmentPreference, find_best_python_installation, find_python_installation,
-        },
+        discovery::{self, EnvironmentPreference, find_python_installation},
     };
 
     struct TestContext {
@@ -741,51 +645,6 @@ mod tests {
                 interpreter: _
             },
             "We should find the valid executable; got {interpreter:?}"
-        );
-
-        Ok(())
-    }
-
-    #[test]
-    fn find_or_download_skips_download_metadata_when_python_is_found() -> Result<()> {
-        let mut context = TestContext::new()?;
-        context.add_python_versions(&["3.12.1"])?;
-        // Pass a missing metadata file to assert that an already-installed Python can
-        // be returned without reading the download list.
-        let missing_downloads = context.tempdir.child("missing-downloads.json");
-
-        let interpreter = context.run(|| {
-            let client_builder = BaseClientBuilder::default();
-            tokio::runtime::Builder::new_current_thread()
-                .enable_all()
-                .build()
-                .expect("Failed to build runtime")
-                .block_on(PythonInstallation::find_or_download(
-                    None,
-                    EnvironmentPreference::OnlySystem,
-                    PythonPreference::OnlySystem,
-                    PythonDownloads::Never,
-                    &client_builder,
-                    &context.cache,
-                    None,
-                    None,
-                    None,
-                    missing_downloads.path().to_str(),
-                ))
-        })?;
-
-        assert_matches!(
-            interpreter,
-            PythonInstallation {
-                source: PythonSource::SearchPathFirst,
-                interpreter: _
-            },
-            "We should find the local Python without reading download metadata; got {interpreter:?}"
-        );
-        assert_eq!(
-            &interpreter.interpreter().python_full_version().to_string(),
-            "3.12.1",
-            "We should find the local interpreter"
         );
 
         Ok(())
@@ -1372,154 +1231,6 @@ mod tests {
             result,
             Err(PythonNotFound { .. }),
             "We should not find a python; got {result:?}"
-        );
-
-        Ok(())
-    }
-
-    fn find_best_python_installation_no_download(
-        request: &PythonRequest,
-        environments: EnvironmentPreference,
-        preference: PythonPreference,
-        cache: &Cache,
-    ) -> Result<PythonInstallation, crate::Error> {
-        let client_builder = BaseClientBuilder::default();
-        tokio::runtime::Builder::new_current_thread()
-            .enable_all()
-            .build()
-            .expect("Failed to build runtime")
-            .block_on(find_best_python_installation(
-                request,
-                environments,
-                preference,
-                false,
-                &client_builder,
-                cache,
-                None,
-                None,
-                None,
-                None,
-            ))
-    }
-
-    #[test]
-    fn find_best_python_version_patch_exact() -> Result<()> {
-        let mut context = TestContext::new()?;
-        context.add_python_versions(&["3.10.1", "3.11.2", "3.11.4", "3.11.3", "3.12.5"])?;
-
-        let python = context.run(|| {
-            find_best_python_installation_no_download(
-                &PythonRequest::parse("3.11.3"),
-                EnvironmentPreference::Any,
-                PythonPreference::OnlySystem,
-                &context.cache,
-            )
-        })?;
-
-        assert_matches!(
-            python,
-            PythonInstallation {
-                source: PythonSource::SearchPath,
-                interpreter: _
-            },
-            "We should find a python; got {python:?}"
-        );
-        assert_eq!(
-            &python.interpreter().python_full_version().to_string(),
-            "3.11.3",
-            "We should prefer the exact request"
-        );
-
-        Ok(())
-    }
-
-    #[test]
-    fn find_best_python_version_patch_fallback() -> Result<()> {
-        let mut context = TestContext::new()?;
-        context.add_python_versions(&["3.10.1", "3.11.2", "3.11.4", "3.11.3", "3.12.5"])?;
-
-        let python = context.run(|| {
-            find_best_python_installation_no_download(
-                &PythonRequest::parse("3.11.11"),
-                EnvironmentPreference::Any,
-                PythonPreference::OnlySystem,
-                &context.cache,
-            )
-        })?;
-
-        assert_matches!(
-            python,
-            PythonInstallation {
-                source: PythonSource::SearchPath,
-                interpreter: _
-            },
-            "We should find a python; got {python:?}"
-        );
-        assert_eq!(
-            &python.interpreter().python_full_version().to_string(),
-            "3.11.2",
-            "We should fallback to the first matching minor"
-        );
-
-        Ok(())
-    }
-
-    #[test]
-    fn find_best_python_skips_source_without_match() -> Result<()> {
-        let mut context = TestContext::new()?;
-        let venv = context.tempdir.child(".venv");
-        TestContext::mock_venv(&venv, "3.12.0")?;
-        context.add_python_versions(&["3.10.1"])?;
-
-        let python =
-            context.run_with_vars(&[(EnvVars::VIRTUAL_ENV, Some(venv.as_os_str()))], || {
-                find_best_python_installation_no_download(
-                    &PythonRequest::parse("3.10"),
-                    EnvironmentPreference::Any,
-                    PythonPreference::OnlySystem,
-                    &context.cache,
-                )
-            })?;
-        assert_matches!(
-            python,
-            PythonInstallation {
-                source: PythonSource::SearchPathFirst,
-                interpreter: _
-            },
-            "We should skip the active environment in favor of the requested version; got {python:?}"
-        );
-
-        Ok(())
-    }
-
-    #[test]
-    fn find_best_python_returns_to_earlier_source_on_fallback() -> Result<()> {
-        let mut context = TestContext::new()?;
-        let venv = context.tempdir.child(".venv");
-        TestContext::mock_venv(&venv, "3.10.1")?;
-        context.add_python_versions(&["3.10.3"])?;
-
-        let python =
-            context.run_with_vars(&[(EnvVars::VIRTUAL_ENV, Some(venv.as_os_str()))], || {
-                find_best_python_installation_no_download(
-                    &PythonRequest::parse("3.10.2"),
-                    EnvironmentPreference::Any,
-                    PythonPreference::OnlySystem,
-                    &context.cache,
-                )
-            })?;
-        assert_matches!(
-            python,
-            PythonInstallation {
-                source: PythonSource::ActiveEnvironment,
-                interpreter: _
-            },
-            "We should prefer the active environment after relaxing; got {python:?}"
-        );
-        assert_eq!(
-            python.interpreter().python_full_version().to_string(),
-            "3.10.1",
-            "We should prefer the active environment"
         );
 
         Ok(())
