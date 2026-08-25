@@ -34,7 +34,6 @@ use uv_resolver::{
     DependencyMode, ExcludeNewer, FlatIndex, OptionsBuilder, Prerelease, PythonRequirement,
     ResolutionMode, ResolverEnvironment,
 };
-use uv_settings::PythonInstallMirrors;
 use uv_torch::{AmdGpuArchitecture, TorchMode, TorchSource, TorchStrategy};
 use uv_types::{HashStrategy, SourceTreeEditablePolicy};
 use uv_warnings::warn_user;
@@ -167,7 +166,7 @@ pub(crate) async fn pip_sync(
     let environment = if target.is_some() || prefix.is_some() {
         let python_request = python.as_deref().map(PythonRequest::parse);
 
-        let installation = PythonInstallation::find(python_request.as_ref().unwrap_or(&PythonRequest::Default), EnvironmentPreference::from_system_flag(system, false), python_preference.with_system_flag(system), &cache);
+        let installation = PythonInstallation::find(python_request.as_ref().unwrap_or(&PythonRequest::Default), EnvironmentPreference::from_system_flag(system, false), python_preference.with_system_flag(system), &cache)?;
         report_interpreter(&installation, true, printer)?;
         PythonEnvironment::from_installation(installation)
     } else {

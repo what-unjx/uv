@@ -37,7 +37,7 @@ use uv_resolver::{
     FlatIndex, ForkStrategy, Installable, Lock, Prerelease, PythonReport, ResolutionMode,
 };
 use uv_scripts::Pep723Script;
-use uv_settings::{MalwareCheckSettings, PythonInstallMirrors};
+use uv_settings::MalwareCheckSettings;
 use uv_types::{BuildIsolation, HashStrategy, SourceTreeEditablePolicy};
 use uv_warnings::{warn_user, warn_user_once};
 use uv_workspace::pyproject::Source;

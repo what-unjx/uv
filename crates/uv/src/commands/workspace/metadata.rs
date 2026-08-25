@@ -9,7 +9,7 @@ use uv_preview::{Preview, PreviewFeature};
 use uv_python::{ConfigDiscovery, PythonPreference, PythonRequest};
 use uv_resolver::Metadata;
 use uv_scripts::Pep723Script;
-use uv_settings::{MalwareCheckSettings, PythonInstallMirrors};
+use uv_settings::MalwareCheckSettings;
 use uv_warnings::warn_user;
 use uv_workspace::{DiscoveryOptions, VirtualProject, WorkspaceCache};
 
@@ -117,7 +117,7 @@ pub(crate) async fn metadata(
                     cache,
                     printer,
                 )
-                .await?
+                ?
                 .into_interpreter()
             }
         };

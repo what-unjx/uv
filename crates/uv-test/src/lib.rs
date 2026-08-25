@@ -16,7 +16,6 @@ use std::path::{Path, PathBuf};
 use std::process::{Command, Output, Stdio};
 use std::str::FromStr;
 use std::{env, io};
-use uv_python::downloads::ManagedPythonDownloadList;
 
 use assert_cmd::assert::{Assert, OutputAssertExt};
 use assert_fs::assert::PathAssert;
@@ -33,7 +32,6 @@ use tokio::io::AsyncWriteExt;
 
 use uv_cache::Cache;
 use uv_fs::Simplified;
-use uv_python::managed::ManagedPythonInstallations;
 use uv_python::{
     EnvironmentPreference, PythonInstallation, PythonPreference, PythonRequest, PythonVersion,
 };
@@ -738,29 +736,16 @@ impl TestContext {
     }
 
     #[must_use]
-    pub fn with_empty_python_install_mirror(mut self) -> Self {
-        self.extra_env.push((
-            EnvVars::UV_PYTHON_INSTALL_MIRROR.into(),
-            String::new().into(),
-        ));
+    pub fn with_empty_python_install_mirror(self) -> Self {
+        // [第5次修正] 托管 Python 安装已移除：安装镜像不再存在，此方法保留为 no-op。
         self
     }
 
     /// Add extra directories and configuration for managed Python installations.
     ///
-    /// [第3次修正] 托管 Python 安装目录已固定为 `UV_HOME/data/python`、可执行目录为
-    /// `UV_HOME/bin`（由 `UV_HOME` 决定）；此方法仅保留下载策略配置。
+    /// [第5次修正] 托管 Python 已移除；此方法保留为 no-op 以兼容现有调用。
     #[must_use]
-    pub fn with_managed_python_dirs(mut self) -> Self {
-        self.extra_env
-            .push((EnvVars::UV_PYTHON_DOWNLOADS.into(), "automatic".into()));
-        // [第4次修正] 托管目录固定为 `UV_HOME/data/python`；在快照中显示为 `[TEMP_DIR]/managed`
-        // 以保持旧快照语义，避免大规模更新快照。
-        self.filters.push((
-            r"\[TEMP_DIR\]/data[\\/]python".to_string(),
-            "[TEMP_DIR]/managed".to_string(),
-        ));
-
+    pub fn with_managed_python_dirs(self) -> Self {
         self
     }
 
@@ -779,12 +764,9 @@ impl TestContext {
     }
 
     #[must_use]
-    pub fn with_versions_as_managed(mut self, versions: &[&str]) -> Self {
-        self.extra_env.push((
-            EnvVars::UV_INTERNAL__TEST_PYTHON_MANAGED.into(),
-            versions.iter().join(" ").into(),
-        ));
-
+    pub fn with_versions_as_managed(self, _versions: &[&str]) -> Self {
+        // [第5次修正] 托管 Python 已移除：无法再伪造托管解释器，此方法保留为 no-op；
+        // 依赖该机制的测试应改为依赖系统 Python 或删除。
         self
     }
 
@@ -1005,12 +987,10 @@ impl TestContext {
             .expect("CARGO_MANIFEST_DIR should be doubly nested in workspace")
             .to_path_buf();
 
-        let download_list = ManagedPythonDownloadList::new_only_embedded().unwrap();
-
         // [第4次修正] 找不到请求的 Python 版本时返回 `None`，由 `test_context!` 宏将测试标记为跳过
         //（而非 panic）。此前这里 `.expect()` 会在系统缺少对应 Python 时直接崩溃整个测试。
         let python_installations =
-            python_installations_for_versions(&temp_dir, python_versions, &download_list)
+            python_installations_for_versions(&temp_dir, python_versions)
                 .expect("Failed to resolve test Python versions")?;
 
         let python_versions: Vec<_> = python_versions
@@ -1330,8 +1310,6 @@ impl TestContext {
             .env(EnvVars::UV_NO_SYSTEM_CONFIG, "1")
             // [第3次修正] 每个测试使用独立的 `UV_HOME`，保证存储隔离并满足强制门
             .env(EnvVars::UV_HOME, self.temp_dir.as_os_str())
-            // Installations are not allowed by default; see `Self::with_managed_python_dirs`
-            .env(EnvVars::UV_PYTHON_DOWNLOADS, "never")
             .env(EnvVars::UV_PYTHON_SEARCH_PATH, self.python_path())
             .env(EnvVars::UV_EXCLUDE_NEWER, TEST_TIMESTAMP)
             .env(EnvVars::UV_TEST_CURRENT_TIMESTAMP, TEST_TIMESTAMP)
@@ -1339,9 +1317,6 @@ impl TestContext {
             // Keep Python discovery hermetic and avoid mutating global state, like the Windows
             // registry, unless a test opts in explicitly.
             .env(EnvVars::UV_PYTHON_NO_REGISTRY, "1")
-            .env(EnvVars::UV_PYTHON_INSTALL_REGISTRY, "0")
-            // Since downloads, fetches and builds run in parallel, their message output order is
-            // non-deterministic, so can't capture them in test output.
             .env(EnvVars::UV_TEST_NO_CLI_PROGRESS, "1")
             // I believe the intent of all tests is that they are run outside the
             // context of an existing git repository. And when they aren't, state
@@ -1613,42 +1588,10 @@ impl TestContext {
         command
     }
 
-    /// Create a `uv python install` command with options shared across scenarios.
-    pub fn python_install(&self) -> Command {
-        let mut command = self.new_command();
-        command.arg("python").arg("install");
-        self.add_shared_options(&mut command, true);
-        command
-    }
-
-    /// Create a `uv python uninstall` command with options shared across scenarios.
-    pub fn python_uninstall(&self) -> Command {
-        let mut command = self.new_command();
-        command.arg("python").arg("uninstall");
-        self.add_shared_options(&mut command, true);
-        command
-    }
-
-    /// Create a `uv python upgrade` command with options shared across scenarios.
-    pub fn python_upgrade(&self) -> Command {
-        let mut command = self.new_command();
-        command.arg("python").arg("upgrade");
-        self.add_shared_options(&mut command, true);
-        command
-    }
-
     /// Create a `uv python pin` command with options shared across scenarios.
     pub fn python_pin(&self) -> Command {
         let mut command = self.new_command();
         command.arg("python").arg("pin");
-        self.add_shared_options(&mut command, true);
-        command
-    }
-
-    /// Create a `uv python dir` command with options shared across scenarios.
-    pub fn python_dir(&self) -> Command {
-        let mut command = self.new_command();
-        command.arg("python").arg("dir");
         self.add_shared_options(&mut command, true);
         command
     }
@@ -2194,23 +2137,10 @@ pub fn venv_bin_path(venv: impl AsRef<Path>) -> PathBuf {
 
 /// Get the path to the python interpreter for a specific python version.
 fn get_python(version: &PythonVersion) -> PathBuf {
-    // [第3次修正] 收敛到 UV_HOME：从环境变量读取 uv_home 后传入
-    let uv_home = env::var_os(EnvVars::UV_HOME)
-        .filter(|s| !s.is_empty())
-        .map(PathBuf::from);
-    ManagedPythonInstallations::from_settings(None, uv_home)
-        .map(|installed_pythons| {
-            installed_pythons
-                .find_version(version)
-                .expect("Tests are run on a supported platform")
-                .next()
-                .as_ref()
-                .map(|python| python.executable(false))
-        })
-        // We'll search for the request Python on the PATH if not found in the python versions
-        // We hack this into a `PathBuf` to satisfy the compiler but it's just a string
-        .unwrap_or_default()
-        .unwrap_or(PathBuf::from(version.to_string()))
+    // [第3次修正] 收敛到 UV_HOME：托管安装已移除，直接返回版本字符串，
+    // 由 PATH 上的解释器解析（与 `uv` 的搜索路径行为一致）。
+    let _ = version;
+    PathBuf::from(version.to_string())
 }
 
 /// Create a virtual environment at the given path.
@@ -2241,13 +2171,9 @@ pub fn python_path_with_versions(
     temp_dir: &ChildPath,
     python_versions: &[&str],
 ) -> anyhow::Result<OsString> {
-    let download_list = ManagedPythonDownloadList::new_only_embedded().unwrap();
-    let python_installations = python_installations_for_versions(
-        temp_dir,
-        python_versions,
-        &download_list,
-    )?
-    .expect("Failed to find test Python versions");
+    let python_installations =
+        python_installations_for_versions(temp_dir, python_versions)?
+            .expect("Failed to find test Python versions");
     Ok(env::join_paths(
         python_installations
             .into_iter()
@@ -2261,7 +2187,6 @@ pub fn python_path_with_versions(
 fn python_installations_for_versions(
     temp_dir: &ChildPath,
     python_versions: &[&str],
-    download_list: &ManagedPythonDownloadList,
 ) -> anyhow::Result<Option<Vec<PathBuf>>> {
     let cache = Cache::from_path(temp_dir.child("cache").to_path_buf())
         .init_no_wait()?
@@ -2269,18 +2194,17 @@ fn python_installations_for_versions(
     let _preview = uv_preview::test::with_features(&[]);
     let mut selected_pythons = Vec::with_capacity(python_versions.len());
     for python_version in python_versions {
+        // [第4次修正] 托管下载已移除：仅在系统（搜索路径 / 注册表 / Store）中查找请求的版本；
+        // 找不到时返回 `None`，由 `test_context!` 宏将测试标记为跳过。
         match PythonInstallation::find(
             &PythonRequest::parse(python_version),
             EnvironmentPreference::OnlySystem,
-            PythonPreference::Managed,
-            download_list,
+            PythonPreference::OnlySystem,
             &cache,
         ) {
             Ok(python) => {
                 selected_pythons.push(python.into_interpreter().sys_executable().to_owned());
             }
-            // [第4次修正] 找不到请求的 Python 版本时不再 `panic!`，而是返回 `None` 让测试被跳过。
-            // 具体的跳过提示由 `test_context!` / `test_context_with_versions!` 宏打印。
             Err(_) => {
                 return Ok(None);
             }

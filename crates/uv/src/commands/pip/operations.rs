@@ -1140,56 +1140,31 @@ pub(crate) fn report_interpreter(
     dimmed: bool,
     printer: Printer,
 ) -> Result<(), Error> {
-    let managed = python.source().is_managed();
     let implementation = python.implementation();
     let interpreter = python.interpreter();
 
     if dimmed {
-        if managed {
-            writeln!(
-                printer.stderr(),
-                "{}",
-                format!(
-                    "Using {} {}{}",
-                    implementation.pretty(),
-                    interpreter.python_version(),
-                    interpreter.variant().display_suffix(),
-                )
-                .dimmed()
-            )?;
-        } else {
-            writeln!(
-                printer.stderr(),
-                "{}",
-                format!(
-                    "Using {} {}{} interpreter at: {}",
-                    implementation.pretty(),
-                    interpreter.python_version(),
-                    interpreter.variant().display_suffix(),
-                    interpreter.sys_executable().user_display()
-                )
-                .dimmed()
-            )?;
-        }
-    } else {
-        if managed {
-            writeln!(
-                printer.stderr(),
-                "Using {} {}{}",
-                implementation.pretty(),
-                interpreter.python_version().cyan(),
-                interpreter.variant().display_suffix().cyan()
-            )?;
-        } else {
-            writeln!(
-                printer.stderr(),
+        writeln!(
+            printer.stderr(),
+            "{}",
+            format!(
                 "Using {} {}{} interpreter at: {}",
                 implementation.pretty(),
                 interpreter.python_version(),
                 interpreter.variant().display_suffix(),
-                interpreter.sys_executable().user_display().cyan()
-            )?;
-        }
+                interpreter.sys_executable().user_display()
+            )
+            .dimmed()
+        )?;
+    } else {
+        writeln!(
+            printer.stderr(),
+            "Using {} {}{} interpreter at: {}",
+            implementation.pretty(),
+            interpreter.python_version(),
+            interpreter.variant().display_suffix(),
+            interpreter.sys_executable().user_display().cyan()
+        )?;
     }
 
     Ok(())
@@ -1201,18 +1176,7 @@ pub(crate) fn report_target_environment(
     cache: &Cache,
     printer: Printer,
 ) -> Result<(), Error> {
-    // Resolve minor-version link directories (e.g., `cpython-3.12` → `cpython-3.12.12`).
-    // On Windows, junction points aren't resolved by the interpreter's `sys.prefix`, so we
-    // use the target directory from the minor-version link to display the actual installation.
-    // This only applies to managed installations, not virtual environments.
-    let root = if env.interpreter().is_virtualenv() {
-        env.root().to_path_buf()
-    } else {
-        ManagedPythonInstallation::try_from_interpreter(env.interpreter())
-            .and_then(|installation| PythonMinorVersionLink::from_installation(&installation))
-            .map(|link| link.target_directory)
-            .unwrap_or_else(|| env.root().to_path_buf())
-    };
+    let root = env.root().to_path_buf();
 
     let message = format!(
         "Using Python {} environment at: {}",

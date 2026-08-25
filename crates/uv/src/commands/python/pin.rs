@@ -29,7 +29,7 @@ pub(crate) async fn pin(
     no_project: bool,
     global: bool,
     rm: bool,
-    client_builder: BaseClientBuilder<'_>,
+    _client_builder: BaseClientBuilder<'_>,
     cache: &Cache,
     workspace_cache: &WorkspaceCache,
     printer: Printer,
@@ -90,7 +90,7 @@ pub(crate) async fn pin(
     let Some(request) = request else {
         // Display the current pinned Python version
         if let Some(file) = version_file? {
-            let mut pins = file.versions().peekable();
+            let pins = file.versions().peekable();
 
             for pin in pins {
                 writeln!(printer.stdout(), "{}", pin.to_canonical_string())?;
@@ -114,7 +114,7 @@ pub(crate) async fn pin(
     }
 
     let python = match PythonInstallation::find_existing(
-        Some(&request),
+        &request,
         EnvironmentPreference::OnlySystem,
         python_preference,
         cache,

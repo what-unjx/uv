@@ -31,7 +31,7 @@ pub(crate) async fn find(
     system: bool,
     config_discovery: ConfigDiscovery,
     python_preference: PythonPreference,
-    client_builder: &BaseClientBuilder<'_>,
+    _client_builder: &BaseClientBuilder<'_>,
     cache: &Cache,
     workspace_cache: &WorkspaceCache,
     printer: Printer,

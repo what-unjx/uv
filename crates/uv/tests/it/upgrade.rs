@@ -59,7 +59,7 @@ fn upgrade_help() {
     uv_snapshot!(
         context.filters(),
         context.upgrade().arg("--help"),
-        @r#"
+        @"
     exit_code: 0 (success)
     ----- stdout -----
     Upgrade a dependency in the project
@@ -76,12 +76,6 @@ fn upgrade_help() {
       -n, --no-cache               Avoid reading from or writing to the cache, instead using a temporary
                                    directory for the duration of the operation [env: UV_NO_CACHE=]
           --cache-dir [CACHE_DIR]  Path to the cache directory
-
-    Python options:
-          --managed-python       Require use of uv-managed Python versions [env: UV_MANAGED_PYTHON=]
-          --no-managed-python    Disable use of uv-managed Python versions [env: UV_NO_MANAGED_PYTHON=]
-          --no-python-downloads  Disable automatic downloads of Python. [env:
-                                 "UV_PYTHON_DOWNLOADS=never"]
 
     Global options:
       -q, --quiet...
@@ -109,7 +103,7 @@ fn upgrade_help() {
               Avoid discovering configuration files (`pyproject.toml`, `uv.toml`) [env: UV_NO_CONFIG=]
       -h, --help
               Display the concise help for this command
-    "#
+    "
     );
 }
 

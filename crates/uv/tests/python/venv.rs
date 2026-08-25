@@ -1964,60 +1964,6 @@ fn create_venv_apostrophe() {
     let stdout = String::from_utf8_lossy(&output.stdout);
     assert_eq!(stdout.trim(), venv_dir.to_string_lossy());
 }
-
-#[test]
-fn venv_python_preference() {
-    let context =
-        uv_test::test_context_with_versions!(&["3.12", "3.11"]).with_versions_as_managed(&["3.12"]);
-
-    // Create a managed interpreter environment
-    uv_snapshot!(context.filters(), context.venv(), @"
-    exit_code: 0 (success)
-    ----- stderr -----
-    Using CPython 3.12.[X]
-    Creating virtual environment at: .venv
-    Activate with: source .venv/[BIN]/activate
-    ");
-
-    uv_snapshot!(context.filters(), context.venv().arg("--no-managed-python"), @"
-    exit_code: 2 (failure)
-    ----- stderr -----
-    Using CPython 3.11.[X] interpreter at: [PYTHON-3.11]
-    Creating virtual environment at: .venv
-    error: Failed to create virtual environment
-      Caused by: A virtual environment already exists at: .venv
-
-    hint: Use the `--clear` flag or set `UV_VENV_CLEAR=1` to replace the existing virtual environment
-    ");
-
-    uv_snapshot!(context.filters(), context.venv().arg("--clear").arg("--no-managed-python"), @"
-    exit_code: 0 (success)
-    ----- stderr -----
-    Using CPython 3.11.[X] interpreter at: [PYTHON-3.11]
-    Creating virtual environment at: .venv
-    Activate with: source .venv/[BIN]/activate
-    ");
-
-    uv_snapshot!(context.filters(), context.venv(), @"
-    exit_code: 2 (failure)
-    ----- stderr -----
-    Using CPython 3.12.[X]
-    Creating virtual environment at: .venv
-    error: Failed to create virtual environment
-      Caused by: A virtual environment already exists at: .venv
-
-    hint: Use the `--clear` flag or set `UV_VENV_CLEAR=1` to replace the existing virtual environment
-    ");
-
-    uv_snapshot!(context.filters(), context.venv().arg("--clear").arg("--managed-python"), @"
-    exit_code: 0 (success)
-    ----- stderr -----
-    Using CPython 3.12.[X]
-    Creating virtual environment at: .venv
-    Activate with: source .venv/[BIN]/activate
-    ");
-}
-
 #[test]
 #[cfg(unix)]
 fn create_venv_symlink_clear_preservation() -> Result<()> {

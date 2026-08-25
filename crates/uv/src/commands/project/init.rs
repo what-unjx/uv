@@ -11,7 +11,6 @@ use tracing::{debug, trace, warn};
 
 use uv_cache::Cache;
 use uv_cli::AuthorFrom;
-use uv_client::BaseClientBuilder;
 use uv_configuration::{
     DependencyGroupsWithDefaults, ProjectBuildBackend, VersionControlError, VersionControlSystem,
 };
@@ -26,7 +25,6 @@ use uv_python::{
     VersionRequest,
 };
 use uv_scripts::{Pep723Script, ScriptTag};
-use uv_settings::PythonInstallMirrors;
 use uv_static::EnvVars;
 use uv_warnings::warn_user_once;
 use uv_workspace::pyproject_mut::{DependencyTarget, PyProjectTomlMut};
@@ -55,7 +53,6 @@ pub(crate) async fn init(
     pin_python: bool,
     python: Option<String>,
     no_workspace: bool,
-    client_builder: &BaseClientBuilder<'_>,
     python_preference: PythonPreference,
     config_discovery: ConfigDiscovery,
     cache: &Cache,
@@ -71,7 +68,6 @@ pub(crate) async fn init(
                 path,
                 bare,
                 python,
-                client_builder,
                 python_preference,
                 cache,
                 printer,
@@ -148,7 +144,6 @@ pub(crate) async fn init(
                 pin_python,
                 python,
                 no_workspace,
-                client_builder,
                 python_preference,
                 config_discovery,
                 cache,
@@ -192,10 +187,9 @@ async fn init_script(
     script_path: &Path,
     bare: bool,
     python: Option<String>,
-    client_builder: &BaseClientBuilder<'_>,
     python_preference: PythonPreference,
     cache: &Cache,
-    printer: Printer,
+    _printer: Printer,
     no_workspace: bool,
     no_readme: bool,
     author_from: Option<AuthorFrom>,
@@ -243,7 +237,6 @@ async fn init_script(
         !pin_python,
         python_preference,
         config_discovery,
-        client_builder,
         cache,
     )
     .await?;
@@ -273,7 +266,6 @@ async fn init_project(
     pin_python: bool,
     python: Option<String>,
     no_workspace: bool,
-    client_builder: &BaseClientBuilder<'_>,
     python_preference: PythonPreference,
     config_discovery: ConfigDiscovery,
     cache: &Cache,
@@ -367,13 +359,11 @@ async fn init_project(
     let (requires_python, python_pin) = determine_requires_python(
         path,
         pin_python,
-        client_builder,
         python_preference,
         cache,
         workspace.as_deref(),
         python_request,
-    )
-    .await?;
+    )?;
 
     project_kind.init(
         name,
@@ -465,14 +455,12 @@ async fn init_project(
     Ok(())
 }
 
-async fn determine_requires_python(
+fn determine_requires_python(
     path: &Path,
     pin_python: bool,
-    client_builder: &BaseClientBuilder<'_>,
     python_preference: PythonPreference,
     cache: &Cache,
     workspace: Option<&Workspace>,
-    reporter: &PythonDownloadReporter,
     python_request: Option<PythonRequest>,
 ) -> Result<(RequiresPython, Option<PythonRequest>)> {
     // Add a `requires-python` field to the `pyproject.toml` and return the corresponding interpreter.
@@ -523,7 +511,7 @@ async fn determine_requires_python(
                 let requires_python = RequiresPython::from_specifiers(specifiers.clone());
 
                 let python_pin = if pin_python {
-                    let interpreter = PythonInstallation::find(python_request, EnvironmentPreference::OnlySystem, python_preference, cache)
+                    let interpreter = PythonInstallation::find(python_request, EnvironmentPreference::OnlySystem, python_preference, cache)?
                     .into_interpreter();
 
                     Some(PythonRequest::Version(VersionRequest::MajorMinor(
@@ -538,7 +526,7 @@ async fn determine_requires_python(
                 (requires_python, python_pin)
             }
             python_request => {
-                let interpreter = PythonInstallation::find(python_request, EnvironmentPreference::OnlySystem, python_preference, cache)
+                let interpreter = PythonInstallation::find(python_request, EnvironmentPreference::OnlySystem, python_preference, cache)?
                 .into_interpreter();
 
                 let requires_python =
@@ -596,7 +584,7 @@ async fn determine_requires_python(
 
         // Pin to the minor version.
         let python_pin = if pin_python {
-            let interpreter = PythonInstallation::find(&python_request, EnvironmentPreference::OnlySystem, python_preference, cache)
+            let interpreter = PythonInstallation::find(&python_request, EnvironmentPreference::OnlySystem, python_preference, cache)?
             .into_interpreter();
 
             Some(PythonRequest::Version(VersionRequest::MajorMinor(
@@ -613,7 +601,7 @@ async fn determine_requires_python(
         Ok((requires_python, python_pin))
     } else {
         // (4) Default to the system Python
-        let interpreter = PythonInstallation::find(&PythonRequest::Default, EnvironmentPreference::OnlySystem, python_preference, cache)
+        let interpreter = PythonInstallation::find(&PythonRequest::Default, EnvironmentPreference::OnlySystem, python_preference, cache)?
         .into_interpreter();
 
         let requires_python =

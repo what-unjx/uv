@@ -440,8 +440,6 @@ pub enum Commands {
     ///
     /// On Windows, the registry is also searched for Python executables.
     ///
-    /// By default, uv will download Python if a version cannot be found. This behavior can be
-    /// disabled with the `--no-python-downloads` flag or the `python-downloads` setting.
     ///
     /// The `--python` option allows requesting a different interpreter.
     ///
@@ -2028,8 +2026,7 @@ pub struct PipSyncArgs {
     ///
     /// Unlike other install operations, this command does not require discovery of an existing Python
     /// environment and only searches for a Python interpreter to use for package resolution.
-    /// If a suitable Python interpreter cannot be found, uv will install one.
-    /// To disable this, add `--no-python-downloads`.
+    /// If a suitable Python interpreter cannot be found, uv will only search for an existing interpreter.
     #[arg(short = 't', long, conflicts_with = "prefix", value_hint = ValueHint::DirPath)]
     pub target: Option<PathBuf>,
 
@@ -2043,8 +2040,7 @@ pub struct PipSyncArgs {
     ///
     /// Unlike other install operations, this command does not require discovery of an existing Python
     /// environment and only searches for a Python interpreter to use for package resolution.
-    /// If a suitable Python interpreter cannot be found, uv will install one.
-    /// To disable this, add `--no-python-downloads`.
+    /// If a suitable Python interpreter cannot be found, uv will only search for an existing interpreter.
     #[arg(long, conflicts_with = "target", value_hint = ValueHint::DirPath)]
     pub prefix: Option<PathBuf>,
 
@@ -2375,8 +2371,7 @@ pub struct PipInstallArgs {
     ///
     /// Unlike other install operations, this command does not require discovery of an existing Python
     /// environment and only searches for a Python interpreter to use for package resolution.
-    /// If a suitable Python interpreter cannot be found, uv will install one.
-    /// To disable this, add `--no-python-downloads`.
+    /// If a suitable Python interpreter cannot be found, uv will only search for an existing interpreter.
     #[arg(short = 't', long, conflicts_with = "prefix", value_hint = ValueHint::DirPath)]
     pub target: Option<PathBuf>,
 
@@ -2390,8 +2385,7 @@ pub struct PipInstallArgs {
     ///
     /// Unlike other install operations, this command does not require discovery of an existing Python
     /// environment and only searches for a Python interpreter to use for package resolution.
-    /// If a suitable Python interpreter cannot be found, uv will install one.
-    /// To disable this, add `--no-python-downloads`.
+    /// If a suitable Python interpreter cannot be found, uv will only search for an existing interpreter.
     #[arg(long, conflicts_with = "target", value_hint = ValueHint::DirPath)]
     pub prefix: Option<PathBuf>,
 

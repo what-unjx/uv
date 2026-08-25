@@ -45,7 +45,6 @@ use uv_resolver::{
     InMemoryIndex, OptionsBuilder, Prerelease, PylockToml, PythonRequirement, ResolutionMode,
     ResolverEnvironment,
 };
-use uv_settings::PythonInstallMirrors;
 use uv_static::EnvVars;
 use uv_torch::{AmdGpuArchitecture, TorchMode, TorchSource, TorchStrategy};
 use uv_types::{EmptyInstalledPackages, HashStrategy, SourceTreeEditablePolicy};
@@ -283,7 +282,8 @@ pub(crate) async fn pip_compile(
     let python_preference = python_preference.with_system_flag(system);
     let interpreter = if let Some(python) = python.as_ref() {
         let request = PythonRequest::parse(python);
-        PythonInstallation::find(&request, environment_preference, python_preference, &cache)} else {
+        PythonInstallation::find(&request, environment_preference, python_preference, &cache)?
+    } else {
         // TODO(zanieb): The split here hints at a problem with the request abstraction; we should
         // be able to use `PythonInstallation::find(...)` here.
         let request = if let Some(version) = python_version.as_ref() {
@@ -292,7 +292,8 @@ pub(crate) async fn pip_compile(
         } else {
             PythonRequest::default()
         };
-        PythonInstallation::find_existing(&request, environment_preference, python_preference, &cache)}?
+        PythonInstallation::find_existing(&request, environment_preference, python_preference, &cache)?
+    }
     .into_interpreter();
 
     debug!(

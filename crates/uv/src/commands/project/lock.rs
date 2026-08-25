@@ -37,7 +37,6 @@ use uv_resolver::{
     ResolverEnvironment, ResolverManifest, SatisfiesResult, UniversalMarker,
 };
 use uv_scripts::Pep723Script;
-use uv_settings::PythonInstallMirrors;
 use uv_types::{
     BuildContext, BuildIsolation, EmptyInstalledPackages, HashStrategy, SourceTreeEditablePolicy,
 };
@@ -112,7 +111,6 @@ pub(crate) async fn lock(
                 false,
                 python_preference,
                 config_discovery,
-                &client_builder,
                 cache,
             )
             .await?;
@@ -165,7 +163,7 @@ pub(crate) async fn lock(
                     cache,
                     printer,
                 )
-                .await?
+                ?
                 .into_interpreter()
             }
             LockTarget::Script(script) => ScriptInterpreter::discover(

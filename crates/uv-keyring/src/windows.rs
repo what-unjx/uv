@@ -287,7 +287,7 @@ impl WinCredential {
     /// Construct a credential from this credential's underlying Generic credential.
     ///
     /// This can be useful for seeing modifications made by a third party.
-    #[cfg(test)]
+    #[cfg(all(test, feature = "native-auth"))]
     async fn get_credential(&self) -> Result<Self> {
         self.extract_from_platform(Self::extract_credential).await
     }

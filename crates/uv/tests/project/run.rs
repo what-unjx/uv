@@ -4939,7 +4939,6 @@ fn run_with_env_file() -> Result<()> {
 
     uv_snapshot!(context.filters(), context.run()
         .arg("--no-project")
-        .arg("--no-managed-python")
         .arg("--python").arg("3.12")
         .arg("--env-file").arg(".file")
         .arg("test.py")
@@ -6247,41 +6246,6 @@ fn run_no_sync_incompatible_python() -> Result<()> {
 
     Ok(())
 }
-
-#[test]
-fn run_python_preference_no_project() {
-    let context =
-        uv_test::test_context_with_versions!(&["3.12", "3.11"]).with_versions_as_managed(&["3.12"]);
-
-    context.venv().assert().success();
-
-    uv_snapshot!(context.filters(), context.run().arg("python").arg("--version"), @"
-    exit_code: 0 (success)
-    ----- stdout -----
-    Python 3.12.[X]
-    ");
-
-    uv_snapshot!(context.filters(), context.run().arg("--managed-python").arg("python").arg("--version"), @"
-    exit_code: 0 (success)
-    ----- stdout -----
-    Python 3.12.[X]
-    ");
-
-    // `VIRTUAL_ENV` is set here, so we'll ignore the flag
-    uv_snapshot!(context.filters(), context.run().arg("--no-managed-python").arg("python").arg("--version"), @"
-    exit_code: 0 (success)
-    ----- stdout -----
-    Python 3.12.[X]
-    ");
-
-    // If we remove the `VIRTUAL_ENV` variable, we should get the unmanaged Python
-    uv_snapshot!(context.filters(), context.run().arg("--no-managed-python").arg("python").arg("--version").env_remove(EnvVars::VIRTUAL_ENV), @"
-    exit_code: 0 (success)
-    ----- stdout -----
-    Python 3.11.[X]
-    ");
-}
-
 /// Regression test for: <https://github.com/astral-sh/uv/issues/15518>
 #[test]
 fn isolate_child_environment() -> Result<()> {

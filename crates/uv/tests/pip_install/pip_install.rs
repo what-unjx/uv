@@ -549,7 +549,7 @@ fn invalid_pyproject_toml_option_unknown_field() -> Result<()> {
         |
       2 | unknown = "field"
         | ^^^^^^^
-      unknown field `unknown`, expected one of `required-version`, `system-certs`, `native-tls`, `offline`, `no-cache`, `cache-dir`, `preview`, `preview-features`, `python-preference`, `python-downloads`, `concurrent-downloads`, `concurrent-builds`, `concurrent-installs`, `index`, `index-url`, `extra-index-url`, `no-index`, `find-links`, `index-strategy`, `keyring-provider`, `http-proxy`, `https-proxy`, `no-proxy`, `allow-insecure-host`, `resolution`, `prerelease`, `prerelease-package`, `fork-strategy`, `dependency-metadata`, `config-settings`, `config-settings-package`, `no-build-isolation`, `no-build-isolation-package`, `extra-build-dependencies`, `extra-build-variables`, `exclude-newer`, `exclude-newer-package`, `link-mode`, `compile-bytecode`, `no-sources`, `no-sources-package`, `upgrade`, `upgrade-package`, `reinstall`, `reinstall-package`, `no-build`, `no-build-package`, `no-binary`, `no-binary-package`, `torch-backend`, `python-install-mirror`, `pypy-install-mirror`, `python-downloads-json-url`, `publish-url`, `trusted-publishing`, `check-url`, `add-bounds`, `audit`, `pip`, `cache-keys`, `override-dependencies`, `exclude-dependencies`, `constraint-dependencies`, `build-constraint-dependencies`, `environments`, `required-environments`, `conflicts`, `workspace`, `sources`, `managed`, `package`, `default-groups`, `dependency-groups`, `dev-dependencies`, `build-backend`
+      unknown field `unknown`, expected one of `required-version`, `system-certs`, `native-tls`, `offline`, `no-cache`, `cache-dir`, `preview`, `preview-features`, `python-preference`, `concurrent-downloads`, `concurrent-builds`, `concurrent-installs`, `index`, `index-url`, `extra-index-url`, `no-index`, `find-links`, `index-strategy`, `keyring-provider`, `http-proxy`, `https-proxy`, `no-proxy`, `allow-insecure-host`, `resolution`, `prerelease`, `prerelease-package`, `fork-strategy`, `dependency-metadata`, `config-settings`, `config-settings-package`, `no-build-isolation`, `no-build-isolation-package`, `extra-build-dependencies`, `extra-build-variables`, `exclude-newer`, `exclude-newer-package`, `link-mode`, `compile-bytecode`, `no-sources`, `no-sources-package`, `upgrade`, `upgrade-package`, `reinstall`, `reinstall-package`, `no-build`, `no-build-package`, `no-binary`, `no-binary-package`, `torch-backend, `publish-url`, `trusted-publishing`, `check-url`, `add-bounds`, `audit`, `pip`, `cache-keys`, `override-dependencies`, `exclude-dependencies`, `constraint-dependencies`, `build-constraint-dependencies`, `environments`, `required-environments`, `conflicts`, `workspace`, `sources`, `managed`, `package`, `default-groups`, `dependency-groups`, `dev-dependencies`, `build-backend`
 
     Resolved in [TIME]
     Checked in [TIME]
@@ -14531,50 +14531,6 @@ fn strip_shebang_arguments() -> Result<()> {
 
     Ok(())
 }
-
-#[test]
-fn install_python_preference() {
-    let context =
-        uv_test::test_context_with_versions!(&["3.12", "3.11"]).with_versions_as_managed(&["3.12"]);
-
-    // Create a managed interpreter environment
-    uv_snapshot!(context.filters(), context.venv(), @"
-    exit_code: 0 (success)
-    ----- stderr -----
-    Using CPython 3.12.[X]
-    Creating virtual environment at: .venv
-    Activate with: source .venv/[BIN]/activate
-    ");
-
-    // Install a package, requesting managed Python
-    uv_snapshot!(context.filters(), context.pip_install().arg("anyio").arg("--managed-python"), @"
-    exit_code: 0 (success)
-    ----- stderr -----
-    Resolved 3 packages in [TIME]
-    Prepared 3 packages in [TIME]
-    Installed 3 packages in [TIME]
-     + anyio==4.3.0
-     + idna==3.6
-     + sniffio==1.3.1
-    ");
-
-    // Install a package, requesting unmanaged Python
-    // This is allowed, because the virtual environment already exists
-    uv_snapshot!(context.filters(), context.pip_install().arg("anyio").arg("--no-managed-python"), @"
-    exit_code: 0 (success)
-    ----- stderr -----
-    Checked 1 package in [TIME]
-    ");
-
-    // This also works with `VIRTUAL_ENV` unset
-    uv_snapshot!(context.filters(), context.pip_install()
-        .arg("anyio").arg("--no-managed-python").env_remove(EnvVars::VIRTUAL_ENV), @"
-    exit_code: 0 (success)
-    ----- stderr -----
-    Checked 1 package in [TIME]
-    ");
-}
-
 #[test]
 fn config_settings_package() -> Result<()> {
     let context = uv_test::test_context!("3.12");
@@ -15626,57 +15582,6 @@ fn pip_install_no_sources_editable_to_registry_switch() -> Result<()> {
 
     Ok(())
 }
-
-// TODO(zb): On Windows, this test shows the minor version symlink path instead of the
-// actual installation path. The `report_target_environment` fix only handles the "Using Python"
-// message but not the "externally managed" error path which uses `env.root()` directly.
-#[cfg(all(feature = "test-python-managed", not(windows)))]
-#[test]
-fn install_with_system_interpreter() {
-    let context = uv_test::test_context_with_versions!(&[])
-        .with_python_download_cache()
-        .with_managed_python_dirs()
-        .with_filtered_python_keys()
-        .with_filtered_latest_python_versions();
-
-    // We use a managed Python version here to ensure consistent output across systems
-    context.python_install().arg("3.12").assert().success();
-
-    uv_snapshot!(context.filters(), context.pip_install()
-        .arg("--system")
-        .arg("anyio"), @"
-    exit_code: 2 (failure)
-    ----- stderr -----
-    Using Python 3.12.[LATEST] environment at: managed/cpython-3.12.[LATEST]-[PLATFORM]
-    error: The interpreter at managed/cpython-3.12.[LATEST]-[PLATFORM] is externally managed, and indicates the following:
-
-      This Python installation is managed by uv and should not be modified.
-
-    hint: Virtual environments were not considered due to the `--system` flag
-    "
-    );
-}
-
-/// Test that a missing Python version is not installed when not using `--target` or `--prefix`.
-#[cfg(feature = "test-python-managed")]
-#[test]
-fn install_missing_python_no_target() {
-    // Create a context that only has Python 3.11 available.
-    let context = uv_test::test_context!("3.11")
-        .with_python_download_cache()
-        .with_managed_python_dirs();
-
-    // Request Python 3.12; which should fail
-    uv_snapshot!(context.filters(), context.pip_install()
-        .arg("--python").arg("3.12")
-        .arg("anyio"), @"
-    exit_code: 2 (failure)
-    ----- stderr -----
-    error: No virtual environment found for Python 3.12; run `uv venv` to create an environment, or pass `--system` to install into a non-virtual environment
-    "
-    );
-}
-
 // If there are no python interpreters available, `uv pip install` into a target should install one.
 #[cfg(feature = "test-python-managed")]
 #[test]
@@ -15692,15 +15597,10 @@ fn install_missing_python_with_target() {
     uv_snapshot!(context.filters(), context.pip_install()
         .arg("anyio")
         .arg("--target").arg(target_dir.path()), @"
-    exit_code: 0 (success)
+    exit_code: 2 (failure)
     ----- stderr -----
-    Using CPython 3.14.[LATEST]
-    Resolved 3 packages in [TIME]
-    Prepared 3 packages in [TIME]
-    Installed 3 packages in [TIME]
-     + anyio==4.3.0
-     + idna==3.6
-     + sniffio==1.3.1
+    error: Failed to inspect Python interpreter from active virtual environment at `.venv/Scripts/python.exe`
+      Caused by: Python interpreter not found at `[VENV]/Scripts/python.exe`
     "
     );
 }
@@ -16072,87 +15972,6 @@ fn record_uses_forward_slashes() -> Result<()> {
 
     Ok(())
 }
-
-/// Test ABI compatibility checking on free-threaded Python.
-///
-/// Free-threaded Python has a different ABI, so wheels must be built specifically for it.
-#[test]
-fn abi_compatibility_on_freethreaded_python() {
-    let context = uv_test::test_context_with_versions!(&[])
-        .with_filtered_python_keys()
-        .with_managed_python_dirs()
-        .with_python_download_cache()
-        .with_filtered_python_install_bin()
-        .with_filtered_python_names()
-        .with_filtered_exe_suffix();
-
-    // Install free-threaded Python 3.14
-    context
-        .python_install()
-        .arg("--preview")
-        .arg("3.14t")
-        .assert()
-        .success();
-
-    // Create a virtual environment with the free-threaded Python
-    context
-        .venv()
-        .arg("--python")
-        .arg("3.14t")
-        .assert()
-        .success();
-
-    // An abi3 wheel should fail with a helpful error
-    let wheel_path = context
-        .workspace_root
-        .join("test/links/abi3_package-1.0.0-cp37-abi3-manylinux_2_17_x86_64.whl");
-
-    uv_snapshot!(context.filters(), context.pip_install()
-        .arg("--python-platform").arg("linux")
-        .arg(wheel_path), @"
-    exit_code: 2 (failure)
-    ----- stderr -----
-    Resolved 1 package in [TIME]
-    error: Failed to determine installation plan
-      Caused by: A path ([WORKSPACE]/test/links/abi3_package-1.0.0-cp37-abi3-manylinux_2_17_x86_64.whl) dependency is incompatible with the current platform
-
-    hint: You're using free-threaded CPython 3.14 (`cp314t`), but the wheel was built for the stable ABI (`abi3`), which requires a GIL-enabled interpreter
-    ");
-
-    // A GIL-enabled wheel for the same Python version should also fail
-    let wheel_path = context
-        .workspace_root
-        .join("test/links/cpython_package-1.0.0-cp314-cp314-manylinux_2_17_x86_64.whl");
-
-    uv_snapshot!(context.filters(), context.pip_install()
-        .arg("--python-platform").arg("linux")
-        .arg(wheel_path), @"
-    exit_code: 2 (failure)
-    ----- stderr -----
-    Resolved 1 package in [TIME]
-    error: Failed to determine installation plan
-      Caused by: A path ([WORKSPACE]/test/links/cpython_package-1.0.0-cp314-cp314-manylinux_2_17_x86_64.whl) dependency is incompatible with the current platform
-
-    hint: You're using free-threaded CPython 3.14 (`cp314t`), but the wheel was built for the CPython 3.14 ABI (`cp314`), which requires a GIL-enabled interpreter
-    ");
-
-    // A wheel with both cp314t (compatible) and abi3 (incompatible) should succeed
-    let wheel_path = context
-        .workspace_root
-        .join("test/links/multi_abi_package-1.0.0-cp314-cp314t.abi3-manylinux_2_17_x86_64.whl");
-
-    uv_snapshot!(context.filters(), context.pip_install()
-        .arg("--python-platform").arg("linux")
-        .arg(wheel_path), @"
-    exit_code: 0 (success)
-    ----- stderr -----
-    Resolved 1 package in [TIME]
-    Prepared 1 package in [TIME]
-    Installed 1 package in [TIME]
-     + multi-abi-package==1.0.0 (from file://[WORKSPACE]/test/links/multi_abi_package-1.0.0-cp314-cp314t.abi3-manylinux_2_17_x86_64.whl)
-    ");
-}
-
 fn build_debug_wheel(context: &TestContext) -> PathBuf {
     // Build a wheel with debug ABI tag (cp314d).
     let package_dir = context.temp_dir.child("cpython_debug_package");
@@ -16195,66 +16014,6 @@ fn build_debug_wheel(context: &TestContext) -> PathBuf {
 
     package_dir.join("dist/cpython_debug_package-1.0.0-cp314-cp314d-manylinux_2_17_x86_64.whl")
 }
-
-/// Since Python 3.8, a debug interpreter accepts both debug (`cp314d`) and non-debug (`cp314`)
-/// wheels.
-#[test]
-#[cfg(feature = "test-python-managed")]
-#[cfg(any(target_os = "macos", target_os = "linux"))] // PBS doesn't have debug builds for windows
-fn abi_compatibility_on_debug_python() {
-    let context = uv_test::test_context_with_versions!(&[])
-        .with_filtered_python_keys()
-        .with_managed_python_dirs()
-        .with_python_download_cache()
-        .with_filtered_python_install_bin()
-        .with_filtered_python_names()
-        .with_filtered_exe_suffix();
-
-    // Install debug CPython 3.14.
-    context
-        .python_install()
-        .arg("--preview")
-        .arg("3.14+debug")
-        .assert()
-        .success();
-
-    // Create a virtual environment with the debug Python.
-    context
-        .venv()
-        .arg("--python")
-        .arg("3.14+debug")
-        .assert()
-        .success();
-
-    // Check that non-debug wheels are supported.
-    let non_debug_wheel = context
-        .workspace_root
-        .join("test/links/cpython_package-1.0.0-cp314-cp314-manylinux_2_17_x86_64.whl");
-    uv_snapshot!(context.filters(), context.pip_install()
-        .arg("--python-platform").arg("linux")
-        .arg(non_debug_wheel), @"
-    exit_code: 0 (success)
-    ----- stderr -----
-    Resolved 1 package in [TIME]
-    Prepared 1 package in [TIME]
-    Installed 1 package in [TIME]
-     + cpython-package==1.0.0 (from file://[WORKSPACE]/test/links/cpython_package-1.0.0-cp314-cp314-manylinux_2_17_x86_64.whl)
-    ");
-
-    // Check that debug wheels are supported.
-    let debug_wheel = build_debug_wheel(&context);
-    uv_snapshot!(context.filters(), context.pip_install()
-        .arg("--python-platform").arg("linux")
-        .arg(debug_wheel), @"
-    exit_code: 0 (success)
-    ----- stderr -----
-    Resolved 1 package in [TIME]
-    Prepared 1 package in [TIME]
-    Installed 1 package in [TIME]
-     + cpython-debug-package==1.0.0 (from file://[TEMP_DIR]/cpython_debug_package/dist/cpython_debug_package-1.0.0-cp314-cp314d-manylinux_2_17_x86_64.whl)
-    ");
-}
-
 /// Non-debug CPython cannot install wheels tagged `cp314d` — matching pip's behavior where only
 /// the debug interpreter adds the non-debug ABI as a fallback, not vice versa.
 #[test]

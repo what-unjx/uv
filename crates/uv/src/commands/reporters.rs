@@ -18,7 +18,6 @@ use uv_distribution_types::{
 };
 use uv_normalize::PackageName;
 use uv_pep440::Version;
-use uv_python::PythonInstallationKey;
 use uv_redacted::DisplaySafeUrl;
 use uv_static::EnvVars;
 
@@ -108,7 +107,6 @@ impl BarState {
 enum Direction {
     Upload,
     Download,
-    Extract,
     Hash,
 }
 
@@ -117,7 +115,6 @@ impl Direction {
         match self {
             Self::Download => "Downloading",
             Self::Upload => "Uploading",
-            Self::Extract => "Extracting",
             Self::Hash => "Hashing",
         }
     }
@@ -320,7 +317,6 @@ impl ProgressReporter {
                     match direction {
                         Direction::Download => "Downloaded",
                         Direction::Upload => "Uploaded",
-                        Direction::Extract => "Extracted",
                         Direction::Hash => "Hashed",
                     }
                     .bold()

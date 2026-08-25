@@ -38,7 +38,6 @@ use uv_python::{
 };
 use uv_requirements::RequirementsSource;
 use uv_resolver::{ExcludeNewer, FlatIndex};
-use uv_settings::PythonInstallMirrors;
 use uv_types::{AnyErrorBuild, BuildContext, BuildStack, HashStrategy, SourceTreeEditablePolicy};
 use uv_warnings::warn_user;
 use uv_workspace::pyproject::ExtraBuildDependencies;
@@ -608,7 +607,7 @@ async fn build_package(
     }
 
     // Locate the Python interpreter to use in the environment.
-    let interpreter = PythonInstallation::find(interpreter_request.as_ref().unwrap_or(&PythonRequest::Default), EnvironmentPreference::Any, python_preference, cache)
+    let interpreter = PythonInstallation::find(interpreter_request.as_ref().unwrap_or(&PythonRequest::Default), EnvironmentPreference::Any, python_preference, cache)?
     .into_interpreter();
 
     // Read build constraints.

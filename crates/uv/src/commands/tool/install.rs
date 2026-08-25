@@ -29,7 +29,7 @@ use uv_python::{
     PythonInstallation, PythonPreference, PythonRequest,
 };
 use uv_requirements::{RequirementsSource, RequirementsSpecification};
-use uv_settings::{PythonInstallMirrors, ResolverInstallerOptions, ToolOptions};
+use uv_settings::{ResolverInstallerOptions, ToolOptions};
 use uv_static::EnvVars;
 use uv_tool::{InstalledTools, Tool};
 use uv_types::{HashStrategy, SourceTreeEditablePolicy};
@@ -134,7 +134,7 @@ pub(crate) async fn install(
 
     // Pre-emptively identify a Python interpreter. We need an interpreter to resolve any unnamed
     // requirements, even if we end up using a different interpreter for the tool install itself.
-    let interpreter = PythonInstallation::find(python_request.as_ref().unwrap_or(&PythonRequest::Default), EnvironmentPreference::OnlySystem, python_preference, &cache)
+    let interpreter = PythonInstallation::find(python_request.as_ref().unwrap_or(&PythonRequest::Default), EnvironmentPreference::OnlySystem, python_preference, &cache)?
     .into_interpreter();
 
     // If the user passed, e.g., `ruff@latest`, refresh the cache.
@@ -929,8 +929,8 @@ pub(crate) async fn install(
                         // `requires-python` constraint, we can try to refine the interpreter.
                         //
                         // For example, if we discovered a Python 3.8 interpreter on the user's machine,
-                        // but the tool requires Python 3.10 or later, we can try to download a
-                        // Python 3.10 interpreter and re-resolve.
+                        // but the tool requires Python 3.10 or later, we can try to find another
+                        // interpreter and re-resolve.
                         let Some(interpreter) = refine_interpreter(
                             &interpreter,
                             python_request.as_ref(),

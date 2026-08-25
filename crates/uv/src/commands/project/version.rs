@@ -20,7 +20,7 @@ use uv_normalize::PackageName;
 use uv_pep440::{BumpCommand, PrereleaseKind, Version};
 use uv_preview::Preview;
 use uv_python::{ConfigDiscovery, PythonPreference, PythonRequest};
-use uv_settings::{MalwareCheckSettings, PythonInstallMirrors};
+use uv_settings::MalwareCheckSettings;
 use uv_workspace::pyproject::PyProjectToml;
 use uv_workspace::pyproject_mut::Error;
 use uv_workspace::{
@@ -583,7 +583,7 @@ async fn lock_and_sync(
             cache,
             printer,
         )
-        .await?
+        ?
         .into_interpreter();
 
         AddTarget::Project(project, Box::new(PythonTarget::Interpreter(interpreter)))

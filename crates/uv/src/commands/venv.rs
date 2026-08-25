@@ -28,7 +28,6 @@ use uv_python::{
     PythonRequest,
 };
 use uv_resolver::{ExcludeNewer, FlatIndex};
-use uv_settings::PythonInstallMirrors;
 use uv_shell::{Shell, shlex_posix, shlex_windows};
 use uv_types::{
     AnyErrorBuild, BuildContext, BuildIsolation, BuildStack, HashStrategy, SourceTreeEditablePolicy,
@@ -156,7 +155,7 @@ pub(crate) async fn venv(
 
     // Locate the Python interpreter to use in the environment
     let interpreter = {
-        let python = PythonInstallation::find(python_request.as_ref().unwrap_or(&PythonRequest::Default), EnvironmentPreference::OnlySystem, python_preference, cache);
+        let python = PythonInstallation::find(python_request.as_ref().unwrap_or(&PythonRequest::Default), EnvironmentPreference::OnlySystem, python_preference, cache)?;
         report_interpreter(&python, false, printer)?;
         python.into_interpreter()
     };

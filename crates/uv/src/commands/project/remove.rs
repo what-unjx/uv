@@ -18,7 +18,7 @@ use uv_normalize::{DEV_DEPENDENCIES, DefaultExtras, DefaultGroups};
 use uv_preview::Preview;
 use uv_python::{ConfigDiscovery, PythonPreference, PythonRequest};
 use uv_scripts::{Pep723Metadata, Pep723Script};
-use uv_settings::{MalwareCheckSettings, PythonInstallMirrors};
+use uv_settings::MalwareCheckSettings;
 use uv_warnings::warn_user_once;
 use uv_workspace::pyproject::{DependencyType, PyProjectToml};
 use uv_workspace::pyproject_mut::{DependencyTarget, PyProjectTomlMut};
@@ -238,14 +238,12 @@ pub(crate) async fn remove(
                     workspace_python,
                     &client_builder,
                     python_preference,
-                    python_downloads,
-                    &install_mirrors,
                     ProjectEnvironmentPolicy::Optional,
                     active,
                     cache,
                     printer,
                 )
-                .await?
+                ?
                 .into_interpreter();
 
                 AddTarget::Project(project, Box::new(PythonTarget::Interpreter(interpreter)))
@@ -255,10 +253,8 @@ pub(crate) async fn remove(
                     project.workspace(),
                     &groups,
                     python.as_deref().map(PythonRequest::parse),
-                    &install_mirrors,
                     &client_builder,
                     python_preference,
-                    python_downloads,
                     no_sync,
                     config_discovery,
                     active,
@@ -279,8 +275,6 @@ pub(crate) async fn remove(
                 python.as_deref().map(PythonRequest::parse),
                 &client_builder,
                 python_preference,
-                python_downloads,
-                &install_mirrors,
                 no_sync,
                 config_discovery,
                 active,

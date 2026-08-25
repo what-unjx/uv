@@ -21,7 +21,6 @@ use uv_python::{ConfigDiscovery, PythonPreference, PythonRequest};
 use uv_requirements::is_pylock_toml;
 use uv_resolver::{PylockToml, RequirementsTxtExport, cyclonedx_json};
 use uv_scripts::Pep723Script;
-use uv_settings::PythonInstallMirrors;
 use uv_warnings::warn_user;
 use uv_workspace::{DiscoveryOptions, MemberDiscovery, VirtualProject, WorkspaceCache};
 
@@ -197,7 +196,7 @@ pub(crate) async fn export(
                     cache,
                     printer,
                 )
-                .await?
+                ?
                 .into_interpreter()
             }
         })

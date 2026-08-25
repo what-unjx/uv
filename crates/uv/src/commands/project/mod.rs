@@ -47,7 +47,6 @@ use uv_resolver::{
     ResolverEnvironment, ResolverOutput,
 };
 use uv_scripts::Pep723ItemRef;
-use uv_settings::PythonInstallMirrors;
 use uv_static::EnvVars;
 use uv_torch::{TorchSource, TorchStrategy};
 use uv_types::{BuildIsolation, EmptyInstalledPackages, HashStrategy, SourceTreeEditablePolicy};
@@ -832,13 +831,13 @@ impl ScriptInterpreter {
     pub(crate) async fn discover(
         script: Pep723ItemRef<'_>,
         python_request: Option<PythonRequest>,
-        client_builder: &BaseClientBuilder<'_>,
+        _client_builder: &BaseClientBuilder<'_>,
         python_preference: PythonPreference,
         keep_incompatible: bool,
         config_discovery: ConfigDiscovery,
         active: Option<bool>,
         cache: &Cache,
-        printer: Printer,
+        _printer: Printer,
     ) -> Result<Self, ProjectError> {
         // For now, we assume that scripts are never evaluated in the context of a workspace.
         let workspace = None;
@@ -874,7 +873,7 @@ impl ScriptInterpreter {
             }
         }
 
-        let interpreter = PythonInstallation::find(python_request.as_ref().unwrap_or(&PythonRequest::Default), EnvironmentPreference::Any, python_preference, cache).into_interpreter();
+        let interpreter = PythonInstallation::find(python_request.as_ref().unwrap_or(&PythonRequest::Default), EnvironmentPreference::Any, python_preference, cache)?.into_interpreter();
 
         if let Err(err) = match requires_python {
             Some((requires_python, RequiresPythonSource::Project)) => {
@@ -1250,30 +1249,16 @@ pub(crate) fn is_centralized_environment_reference(path: &Path, cache: &Cache) -
 pub(crate) fn centralized_environment_root(
     workspace: &Workspace,
     interpreter: &Interpreter,
-    upgradeable: bool,
+    _upgradeable: bool,
     cache: &Cache,
 ) -> PathBuf {
     let workspace_path = fs_err::canonicalize(workspace.install_path())
         .unwrap_or_else(|_| workspace.install_path().clone());
     let interpreter_key = interpreter.key();
     // Use the workspace path to isolate projects and the interpreter key to maximize intra-project
-    // environment re-use while avoiding clashes with incompatible environments. Ignoring the patch
-    // version allows upgradeable managed environments to be re-used after an upgrade.
-    let (digest, python_version) = if upgradeable
-        && let Some(installation) = ManagedPythonInstallation::try_from_interpreter(interpreter)
-        && PythonMinorVersionLink::from_installation(&installation)
-            .is_some_and(|link| link.exists())
-    {
-        (
-            cache_digest(&(&workspace_path, installation.minor_version_key())),
-            interpreter.python_minor_version(),
-        )
-    } else {
-        (
-            cache_digest(&(&workspace_path, &interpreter_key)),
-            interpreter.python_version().clone(),
-        )
-    };
+    // environment re-use while avoiding clashes with incompatible environments.
+    let digest = cache_digest(&(&workspace_path, &interpreter_key));
+    let python_version = interpreter.python_version().clone();
     let name = workspace
         .pyproject_toml()
         .project
@@ -1414,11 +1399,11 @@ impl ProjectInterpreter {
     }
 
     /// Discover the interpreter to use in the current [`Workspace`].
-    pub(crate) async fn discover(
+    pub(crate) fn discover(
         workspace: &Workspace,
         groups: &DependencyGroupsWithDefaults,
         workspace_python: WorkspacePython,
-        client_builder: &BaseClientBuilder<'_>,
+        _client_builder: &BaseClientBuilder<'_>,
         python_preference: PythonPreference,
         policy: ProjectEnvironmentPolicy,
         active: Option<bool>,
@@ -1490,7 +1475,7 @@ impl ProjectInterpreter {
         }
 
         // Locate the Python interpreter to use in the environment.
-        let python = PythonInstallation::find(python_request.as_ref().unwrap_or(&PythonRequest::Default), EnvironmentPreference::OnlySystem, python_preference, cache);
+        let python = PythonInstallation::find(python_request.as_ref().unwrap_or(&PythonRequest::Default), EnvironmentPreference::OnlySystem, python_preference, cache)?;
 
         if centralized {
             let root =
@@ -1508,28 +1493,17 @@ impl ProjectInterpreter {
             }
         }
 
-        let managed = python.source().is_managed();
         let implementation = python.implementation();
         let interpreter = python.into_interpreter();
 
-        if managed {
-            writeln!(
-                printer.stderr(),
-                "Using {} {}{}",
-                implementation.pretty(),
-                interpreter.python_version().cyan(),
-                interpreter.variant().display_suffix().cyan(),
-            )?;
-        } else {
-            writeln!(
-                printer.stderr(),
-                "Using {} {}{} interpreter at: {}",
-                implementation.pretty(),
-                interpreter.python_version(),
-                interpreter.variant().display_suffix(),
-                interpreter.sys_executable().user_display().cyan()
-            )?;
-        }
+        writeln!(
+            printer.stderr(),
+            "Using {} {}{} interpreter at: {}",
+            implementation.pretty(),
+            interpreter.python_version(),
+            interpreter.variant().display_suffix(),
+            interpreter.sys_executable().user_display().cyan()
+        )?;
 
         if let Some(requires_python) = requires_python.as_ref() {
             validate_project_requires_python(
@@ -1872,7 +1846,7 @@ impl ProjectEnvironment {
             cache,
             printer,
         )
-        .await?
+        ?
         {
             // If we found an existing, compatible environment, use it.
             ProjectInterpreter::Environment(environment) => {
@@ -2089,7 +2063,7 @@ impl ScriptEnvironment {
             })
             .ok();
 
-        let upgradeable = python_request
+        let _upgradeable = python_request
             .as_ref()
             .is_none_or(|request| !request.includes_patch());
 
@@ -3127,7 +3101,7 @@ pub(crate) async fn init_script_python_requirement(
         None
     };
 
-    let interpreter = PythonInstallation::find(python_request.as_ref().unwrap_or(&PythonRequest::Default), EnvironmentPreference::Any, python_preference, cache).into_interpreter();
+    let interpreter = PythonInstallation::find(python_request.as_ref().unwrap_or(&PythonRequest::Default), EnvironmentPreference::Any, python_preference, cache)?.into_interpreter();
 
     Ok(RequiresPython::greater_than_equal_version(
         &interpreter.python_minor_version(),

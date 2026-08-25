@@ -213,7 +213,12 @@ impl Entry {
     /// Create an entry for the given target, service, and user.
     ///
     /// The default credential builder is used.
-    #[cfg(all(test, target_os = "macos", feature = "apple-native"))]
+    #[cfg(all(
+        test,
+        target_os = "macos",
+        feature = "apple-native",
+        feature = "native-auth"
+    ))]
     fn new_with_target(target: &str, service: &str, user: &str) -> Result<Self> {
         let entry = build_default_credential(Some(target), service, user)?;
         Ok(entry)
@@ -335,6 +340,7 @@ impl Entry {
     /// what type of concrete object to cast to.
     #[cfg(all(
         test,
+        feature = "native-auth",
         any(
             all(
                 any(target_os = "linux", target_os = "freebsd", target_os = "openbsd"),
@@ -432,7 +438,7 @@ mod tests {
         );
     }
 
-    #[cfg(windows)]
+    #[cfg(all(windows, test, feature = "native-auth"))]
     pub(crate) fn generate_random_string_of_len(len: usize) -> String {
         random_string_of_len(len)
     }

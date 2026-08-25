@@ -19,7 +19,6 @@ use uv_pypi_types::{PyProjectToml, ResolutionMetadata, SupportedEnvironments, Ve
 use uv_python::{ConfigDiscovery, Interpreter, PythonPreference};
 use uv_redacted::DisplaySafeUrl;
 use uv_resolver::{MetadataResponse, implicit_constraints_marker};
-use uv_settings::PythonInstallMirrors;
 use uv_workspace::pyproject::{DependencyType, Source};
 use uv_workspace::pyproject_mut::{DependencyTarget, PyProjectTomlMut};
 use uv_workspace::{
@@ -220,7 +219,7 @@ pub(crate) async fn upgrade(
             cache,
             printer,
         )
-        .await
+        
         {
             Ok(interpreter) => Some(interpreter.into_interpreter()),
             Err(error) => {
@@ -377,7 +376,7 @@ pub(crate) async fn upgrade(
             &cache,
             printer,
         )
-        .await?
+        ?
         .into_interpreter()
     };
 

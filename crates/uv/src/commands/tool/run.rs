@@ -32,7 +32,7 @@ use uv_python::{
     PythonPreference, PythonRequest,
 };
 use uv_requirements::{RequirementsSource, RequirementsSpecification};
-use uv_settings::{PythonInstallMirrors, ResolverInstallerOptions, ToolOptions};
+use uv_settings::{ResolverInstallerOptions, ToolOptions};
 use uv_shell::WindowsRunnable;
 use uv_static::EnvVars;
 use uv_tool::{InstalledTools, entrypoint_paths};
@@ -759,7 +759,7 @@ async fn get_or_create_environment(
     .python_request;
 
     // Discover an interpreter.
-    let interpreter = PythonInstallation::find(python_request.as_ref().unwrap_or(&PythonRequest::Default), EnvironmentPreference::OnlySystem, python_preference, cache)
+    let interpreter = PythonInstallation::find(python_request.as_ref().unwrap_or(&PythonRequest::Default), EnvironmentPreference::OnlySystem, python_preference, cache)?
     .into_interpreter();
 
     let from = match request {

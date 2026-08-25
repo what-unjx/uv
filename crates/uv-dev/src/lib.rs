@@ -16,7 +16,6 @@ use crate::generate_json_schema::Args as GenerateJsonSchemaArgs;
 use crate::generate_options_reference::Args as GenerateOptionsReferenceArgs;
 use crate::generate_preview_features_reference::Args as GeneratePreviewFeaturesReferenceArgs;
 use crate::generate_scenarios::Args as GenerateScenarioTestsArgs;
-use crate::generate_sysconfig_mappings::Args as GenerateSysconfigMetadataArgs;
 use crate::list_packages::ListPackagesArgs;
 #[cfg(feature = "render")]
 use crate::render_benchmarks::RenderBenchmarksArgs;
@@ -33,7 +32,6 @@ mod generate_json_schema;
 mod generate_options_reference;
 mod generate_preview_features_reference;
 mod generate_scenarios;
-mod generate_sysconfig_mappings;
 mod list_packages;
 mod render_benchmarks;
 mod validate_zip;
@@ -69,8 +67,6 @@ enum Cli {
     GeneratePreviewFeaturesReference(GeneratePreviewFeaturesReferenceArgs),
     /// Generate the Packse scenario integration tests.
     GenerateScenarioTests(GenerateScenarioTestsArgs),
-    /// Generate the sysconfig metadata from derived targets.
-    GenerateSysconfigMetadata(GenerateSysconfigMetadataArgs),
     #[cfg(feature = "render")]
     /// Render the benchmarks.
     RenderBenchmarks(RenderBenchmarksArgs),
@@ -89,7 +85,7 @@ pub async fn run() -> Result<()> {
         Cli::Compile(args) => compile::compile(args).await?,
         Cli::ClearCompile(args) => clear_compile::clear_compile(&args)?,
         Cli::ListPackages(args) => list_packages::list_packages(args, environment).await?,
-        Cli::GenerateAll(args) => generate_all::main(&args).await?,
+        Cli::GenerateAll(args) => generate_all::main(&args)?,
         Cli::GenerateJSONSchema(args) => generate_json_schema::main(&args)?,
         Cli::GenerateOptionsReference(args) => generate_options_reference::main(&args)?,
         Cli::GenerateCliReference(args) => generate_cli_reference::main(&args)?,
@@ -99,7 +95,6 @@ pub async fn run() -> Result<()> {
             generate_preview_features_reference::main(&args)?;
         }
         Cli::GenerateScenarioTests(args) => generate_scenarios::main(&args)?,
-        Cli::GenerateSysconfigMetadata(args) => generate_sysconfig_mappings::main(&args).await?,
         #[cfg(feature = "render")]
         Cli::RenderBenchmarks(args) => render_benchmarks::render_benchmarks(&args)?,
     }

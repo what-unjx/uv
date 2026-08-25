@@ -39,7 +39,7 @@ use uv_redacted::DisplaySafeUrl;
 use uv_requirements::{NamedRequirementsResolver, RequirementsSource, RequirementsSpecification};
 use uv_resolver::FlatIndex;
 use uv_scripts::{Pep723Metadata, Pep723Script};
-use uv_settings::{MalwareCheckSettings, PythonInstallMirrors};
+use uv_settings::MalwareCheckSettings;
 use uv_static::is_known_standard_library_package;
 use uv_types::{BuildIsolation, HashStrategy, SourceTreeEditablePolicy};
 use uv_warnings::warn_user_once;
@@ -291,7 +291,7 @@ pub(crate) async fn add(
                 cache,
                 printer,
             )
-            .await?
+            ?
             .into_interpreter();
 
             AddTarget::Project(project, Box::new(PythonTarget::Interpreter(interpreter)))

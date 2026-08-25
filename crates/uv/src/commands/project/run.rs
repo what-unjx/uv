@@ -41,7 +41,7 @@ use uv_requirements::{RequirementsSource, RequirementsSpecification};
 use uv_resolver::{Installable, Lock, Preference};
 use uv_scripts::{Pep723Error, Pep723Item, Pep723Metadata, Pep723Script};
 use uv_settings::{
-    EnvironmentOptions, FilesystemOptions, MalwareCheckSettings, PythonInstallMirrors,
+    EnvironmentOptions, FilesystemOptions, MalwareCheckSettings,
 };
 use uv_shell::WindowsRunnable;
 use uv_static::EnvVars;
@@ -167,9 +167,6 @@ pub(crate) async fn run(
     let sync_state = lock_state.fork();
 
     let env_file_environment = read_env_files(env_file.iter())?;
-
-    // Initialize any output reporters.
-    let download_reporter = PythonDownloadReporter::single(printer);
 
     // The lockfile used for the base environment.
     let mut base_lock: Option<(Lock, PathBuf)> = None;
@@ -644,7 +641,7 @@ pub(crate) async fn run(
                 )
                 .await?;
 
-                let interpreter = PythonInstallation::find(python_request.as_ref().unwrap_or(&PythonRequest::Default), EnvironmentPreference::Any, python_preference, &cache)
+                let interpreter = PythonInstallation::find(python_request.as_ref().unwrap_or(&PythonRequest::Default), EnvironmentPreference::Any, python_preference, &cache)?
                 .into_interpreter();
 
                 if let Some(requires_python) = requires_python.as_ref() {
@@ -858,8 +855,13 @@ pub(crate) async fn run(
                     .and_then(PythonVersionFile::into_version)
                 };
 
-                let python = PythonInstallation::find(python_request.as_ref().unwrap_or(&PythonRequest::Default), // No opt-in is required for system environments, since we are not mutating it.
-                    EnvironmentPreference::Any, &client_builder);
+                let python = PythonInstallation::find(
+                    python_request.as_ref().unwrap_or(&PythonRequest::Default),
+                    // No opt-in is required for system environments, since we are not mutating it.
+                    EnvironmentPreference::Any,
+                    python_preference,
+                    &cache,
+                )?;
 
                 python.into_interpreter()
             };

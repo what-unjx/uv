@@ -294,7 +294,6 @@ fn validate_uv_toml(path: &Path, options: &Options) -> Result<(), Error> {
     let Options {
         globals: _,
         top_level: _,
-        install_mirrors: _,
         publish: _,
         add: _,
         audit: _,
@@ -434,12 +433,6 @@ fn warn_uv_toml_masked_fields(options: &Options) {
                 no_binary,
                 no_binary_package,
                 torch_backend,
-            },
-        install_mirrors:
-            PythonInstallMirrors {
-                python_install_mirror,
-                pypy_install_mirror,
-                python_downloads_json_url,
             },
         publish:
             PublishOptions {
@@ -613,15 +606,6 @@ fn warn_uv_toml_masked_fields(options: &Options) {
     if torch_backend.is_some() {
         masked_fields.push("torch-backend");
     }
-    if python_install_mirror.is_some() {
-        masked_fields.push("python-install-mirror");
-    }
-    if pypy_install_mirror.is_some() {
-        masked_fields.push("pypy-install-mirror");
-    }
-    if python_downloads_json_url.is_some() {
-        masked_fields.push("python-downloads-json-url");
-    }
     if publish_url.is_some() {
         masked_fields.push("publish-url");
     }
@@ -728,10 +712,7 @@ pub struct EnvironmentOptions {
     pub ty_path: Option<PathBuf>,
     pub skip_wheel_filename_check: Option<bool>,
     pub hide_build_output: Option<bool>,
-    pub python_install_bin: Option<bool>,
-    pub python_install_registry: Option<bool>,
     pub python_no_registry: EnvFlag,
-    pub install_mirrors: PythonInstallMirrors,
     pub log_context: Option<bool>,
     pub lfs: Option<bool>,
     pub cuda_driver_version: Option<Version>,
@@ -749,8 +730,6 @@ pub struct EnvironmentOptions {
     pub locked: EnvFlag,
     pub offline: EnvFlag,
     pub no_sync: EnvFlag,
-    pub managed_python: EnvFlag,
-    pub no_managed_python: EnvFlag,
     pub native_tls: EnvFlag,
     pub system_certs: EnvFlag,
     pub preview: EnvFlag,
@@ -808,10 +787,6 @@ impl EnvironmentOptions {
                 EnvVars::UV_SKIP_WHEEL_FILENAME_CHECK,
             )?,
             hide_build_output: parse_boolish_environment_variable(EnvVars::UV_HIDE_BUILD_OUTPUT)?,
-            python_install_bin: parse_boolish_environment_variable(EnvVars::UV_PYTHON_INSTALL_BIN)?,
-            python_install_registry: parse_boolish_environment_variable(
-                EnvVars::UV_PYTHON_INSTALL_REGISTRY,
-            )?,
             python_no_registry: EnvFlag::new(EnvVars::UV_PYTHON_NO_REGISTRY)?,
             concurrency: Concurrency {
                 downloads: parse_integer_environment_variable(
@@ -826,17 +801,6 @@ impl EnvironmentOptions {
                 cache_reads: parse_integer_environment_variable(
                     EnvVars::UV_CONCURRENT_CACHE_READS,
                     None,
-                )?,
-            },
-            install_mirrors: PythonInstallMirrors {
-                python_install_mirror: parse_string_environment_variable(
-                    EnvVars::UV_PYTHON_INSTALL_MIRROR,
-                )?,
-                pypy_install_mirror: parse_string_environment_variable(
-                    EnvVars::UV_PYPY_INSTALL_MIRROR,
-                )?,
-                python_downloads_json_url: parse_string_environment_variable(
-                    EnvVars::UV_PYTHON_DOWNLOADS_JSON_URL,
                 )?,
             },
             log_context: parse_boolish_environment_variable(EnvVars::UV_LOG_CONTEXT)?,
@@ -873,8 +837,6 @@ impl EnvironmentOptions {
             locked: EnvFlag::new(EnvVars::UV_LOCKED)?,
             offline: EnvFlag::new(EnvVars::UV_OFFLINE)?,
             no_sync: EnvFlag::new(EnvVars::UV_NO_SYNC)?,
-            managed_python: EnvFlag::new(EnvVars::UV_MANAGED_PYTHON)?,
-            no_managed_python: EnvFlag::new(EnvVars::UV_NO_MANAGED_PYTHON)?,
             native_tls: EnvFlag::new(EnvVars::UV_NATIVE_TLS)?,
             system_certs: EnvFlag::new(EnvVars::UV_SYSTEM_CERTS)?,
             preview: EnvFlag::new(EnvVars::UV_PREVIEW)?,

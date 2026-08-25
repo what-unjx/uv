@@ -3124,9 +3124,8 @@ impl fmt::Display for PythonSource {
 }
 
 impl PythonPreference {
-    /// Return the sources that are considered when searching for a Python interpreter with this
-    /// preference.
-    fn sources(self) -> &'static [PythonSource] {
+    /// Return the sources that are considered when searching for a Python interpreter.
+    fn sources() -> &'static [PythonSource] {
         if cfg!(windows) {
             &[PythonSource::SearchPath, PythonSource::Registry]
         } else {
@@ -3148,9 +3147,7 @@ impl DiscoveryPreferences {
     /// Return a string describing the sources that are considered when searching for Python with
     /// the given preferences.
     fn sources(&self, request: &PythonRequest) -> String {
-        let python_sources = self
-            .python_preference
-            .sources()
+        let python_sources = PythonPreference::sources()
             .iter()
             .map(ToString::to_string)
             .collect::<Vec<_>>();
@@ -3267,7 +3264,7 @@ mod tests {
     use std::{cell::Cell, io, path::PathBuf, str::FromStr};
 
     use assert_fs::{TempDir, prelude::*};
-    use target_lexicon::{Aarch64Architecture, Architecture};
+    
     use test_log::test;
     use uv_cache::Cache;
     use uv_distribution_types::RequiresPython;
@@ -3277,7 +3274,7 @@ mod tests {
         discovery::{PythonRequest, VersionRequest},
         implementation::ImplementationName,
     };
-    use uv_platform::{Arch, Libc, Os};
+    
 
     use super::{
         DiscoveryPreferences, EnvironmentPreference, Error, InterpreterError,

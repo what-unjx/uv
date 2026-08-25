@@ -44,7 +44,7 @@ use uv_requirements::RequirementsSpecification;
 use uv_resolver::{
     FlatIndex, Installable, Lock, OptionsBuilder, Preference, ResolverManifest, ResolverOutput,
 };
-use uv_settings::{PythonInstallMirrors, ToolOptions};
+use uv_settings::ToolOptions;
 use uv_shell::Shell;
 // [第1次试飞后修正] 新增 EnvVars 导入
 use uv_static::EnvVars;
@@ -640,8 +640,7 @@ pub(crate) async fn refine_interpreter(
     interpreter: &Interpreter,
     python_request: Option<&PythonRequest>,
     err: &pip::operations::Error,
-    client_builder: &BaseClientBuilder<'_>,
-    reporter: &PythonDownloadReporter,
+    _client_builder: &BaseClientBuilder<'_>,
     python_preference: PythonPreference,
     cache: &Cache,
 ) -> anyhow::Result<Option<Interpreter>, ProjectError> {
@@ -696,7 +695,7 @@ pub(crate) async fn refine_interpreter(
 
     debug!("Refining interpreter with: {requires_python_request}");
 
-    let interpreter = PythonInstallation::find(&requires_python_request, EnvironmentPreference::OnlySystem, python_preference, cache)
+    let interpreter = PythonInstallation::find(&requires_python_request, EnvironmentPreference::OnlySystem, python_preference, cache)?
     .into_interpreter();
 
     // If the user passed a `--python` request, and the refined interpreter is incompatible, we

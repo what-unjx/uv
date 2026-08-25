@@ -24,7 +24,7 @@ use uv_python::{
     PythonRequest,
 };
 use uv_requirements::RequirementsSpecification;
-use uv_settings::{Combine, PythonInstallMirrors, ResolverInstallerOptions, ToolOptions};
+use uv_settings::{Combine, ResolverInstallerOptions, ToolOptions};
 // [第1次试飞后修正] 新增 EnvVars 导入
 use uv_static::EnvVars;
 use uv_tool::{InstalledTools, Tool};
@@ -97,7 +97,7 @@ pub(crate) async fn upgrade(
 
     let interpreter = if python_request.is_some() {
         Some(
-            PythonInstallation::find(python_request.as_ref().unwrap_or(&PythonRequest::Default), EnvironmentPreference::OnlySystem, python_preference, cache)
+            PythonInstallation::find(python_request.as_ref().unwrap_or(&PythonRequest::Default), EnvironmentPreference::OnlySystem, python_preference, cache)?
             .into_interpreter(),
         )
     } else {

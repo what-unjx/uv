@@ -86,9 +86,6 @@ pub struct Options {
     pub top_level: ResolverInstallerSchema,
 
     #[serde(flatten)]
-    pub install_mirrors: PythonInstallMirrors,
-
-    #[serde(flatten)]
     pub publish: PublishOptions,
 
     #[serde(flatten)]
@@ -1323,70 +1320,6 @@ pub struct ResolverInstallerSchema {
     pub torch_backend: Option<TorchMode>,
 }
 
-/// Shared settings, relevant to all operations that might create managed python installations.
-#[derive(Debug, Clone, Default, PartialEq, Eq, Deserialize, CombineOptions, OptionsMetadata)]
-#[serde(rename_all = "kebab-case")]
-#[cfg_attr(feature = "schemars", derive(schemars::JsonSchema))]
-pub struct PythonInstallMirrors {
-    /// Mirror URL for downloading managed Python installations.
-    ///
-    /// By default, managed Python installations are downloaded from [`python-build-standalone`](https://github.com/astral-sh/python-build-standalone).
-    /// This variable can be set to a mirror URL to use a different source for Python installations.
-    /// The provided URL will replace `https://github.com/astral-sh/python-build-standalone/releases/download` in, e.g., `https://github.com/astral-sh/python-build-standalone/releases/download/20240713/cpython-3.12.4%2B20240713-aarch64-apple-darwin-install_only.tar.gz`.
-    ///
-    /// Distributions can be read from a local directory by using the `file://` URL scheme.
-    #[option(
-        default = "None",
-        value_type = "str",
-        uv_toml_only = true,
-        example = r#"
-            python-install-mirror = "https://github.com/astral-sh/python-build-standalone/releases/download"
-        "#
-    )]
-    pub python_install_mirror: Option<String>,
-    /// Mirror URL to use for downloading managed PyPy installations.
-    ///
-    /// By default, managed PyPy installations are downloaded from [downloads.python.org](https://downloads.python.org/).
-    /// This variable can be set to a mirror URL to use a different source for PyPy installations.
-    /// The provided URL will replace `https://downloads.python.org/pypy` in, e.g., `https://downloads.python.org/pypy/pypy3.8-v7.3.7-osx64.tar.bz2`.
-    ///
-    /// Distributions can be read from a
-    /// local directory by using the `file://` URL scheme.
-    #[option(
-        default = "None",
-        value_type = "str",
-        uv_toml_only = true,
-        example = r#"
-            pypy-install-mirror = "https://downloads.python.org/pypy"
-        "#
-    )]
-    pub pypy_install_mirror: Option<String>,
-
-    /// URL pointing to JSON of custom Python installations.
-    #[option(
-        default = "None",
-        value_type = "str",
-        uv_toml_only = true,
-        example = r#"
-            python-downloads-json-url = "/etc/uv/python-downloads.json"
-        "#
-    )]
-    pub python_downloads_json_url: Option<String>,
-}
-
-impl PythonInstallMirrors {
-    #[must_use]
-    pub fn combine(self, other: Self) -> Self {
-        Self {
-            python_install_mirror: self.python_install_mirror.or(other.python_install_mirror),
-            pypy_install_mirror: self.pypy_install_mirror.or(other.pypy_install_mirror),
-            python_downloads_json_url: self
-                .python_downloads_json_url
-                .or(other.python_downloads_json_url),
-        }
-    }
-}
-
 /// Settings that are specific to the `uv pip` command-line interface.
 ///
 /// These values will be ignored when running commands outside the `uv pip` namespace (e.g.,
@@ -2616,12 +2549,6 @@ struct OptionsWire {
     torch_backend: Option<TorchMode>,
 
     // #[serde(flatten)]
-    // install_mirror: PythonInstallMirrors,
-    python_install_mirror: Option<String>,
-    pypy_install_mirror: Option<String>,
-    python_downloads_json_url: Option<String>,
-
-    // #[serde(flatten)]
     // publish: PublishOptions
     publish_url: Option<DisplaySafeUrl>,
     trusted_publishing: Option<TrustedPublishing>,
@@ -2676,9 +2603,6 @@ impl TryFrom<OptionsWire> for Options {
             preview,
             preview_features,
             python_preference,
-            python_install_mirror,
-            pypy_install_mirror,
-            python_downloads_json_url,
             concurrent_downloads,
             concurrent_builds,
             concurrent_installs,
@@ -2810,11 +2734,6 @@ impl TryFrom<OptionsWire> for Options {
             build_constraint_dependencies,
             environments,
             required_environments,
-            install_mirrors: PythonInstallMirrors {
-                python_install_mirror,
-                pypy_install_mirror,
-                python_downloads_json_url,
-            },
             conflicts,
             publish: PublishOptions {
                 publish_url,

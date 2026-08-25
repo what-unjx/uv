@@ -16,7 +16,6 @@ use uv_preview::{Preview, PreviewFeature};
 use uv_python::{ConfigDiscovery, PythonPreference, PythonRequest, PythonVersion};
 use uv_resolver::{PackageMap, TreeDisplay, TreeJsonTarget};
 use uv_scripts::Pep723Script;
-use uv_settings::PythonInstallMirrors;
 use uv_warnings::warn_user;
 use uv_workspace::{DiscoveryOptions, VirtualProject, WorkspaceCache};
 
@@ -133,7 +132,7 @@ pub(crate) async fn tree(
                     cache,
                     printer,
                 )
-                .await?
+                ?
                 .into_interpreter()
             }
         })

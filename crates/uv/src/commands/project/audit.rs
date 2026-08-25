@@ -40,7 +40,6 @@ use uv_python::{ConfigDiscovery, PythonPreference, PythonVersion};
 use uv_redacted::DisplaySafeUrl;
 use uv_resolver::Lock;
 use uv_scripts::Pep723Script;
-use uv_settings::PythonInstallMirrors;
 use uv_warnings::warn_user;
 use uv_workspace::{DiscoveryOptions, Workspace, WorkspaceCache};
 
@@ -156,7 +155,7 @@ pub(crate) async fn audit(
                     &cache,
                     printer,
                 )
-                .await?
+                ?
                 .into_interpreter()
             }
         })

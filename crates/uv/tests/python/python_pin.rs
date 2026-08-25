@@ -6,9 +6,7 @@ use assert_fs::fixture::{FileWriteStr, PathChild, PathCreateDir};
 use insta::assert_snapshot;
 use uv_platform::{Arch, Os};
 use uv_python::{PYTHON_VERSION_FILENAME, PYTHON_VERSIONS_FILENAME};
-use uv_static::EnvVars;
 use uv_test::uv_snapshot;
-use wiremock::{Mock, MockServer, ResponseTemplate, matchers::method};
 
 #[test]
 fn python_pin() {
@@ -150,65 +148,6 @@ fn python_pin() {
         assert_snapshot!(python_version, @"3.7");
     }
 }
-
-#[test]
-fn python_pin_uses_python_downloads_json_url() {
-    let context = uv_test::test_context_with_versions!(&[]).with_filtered_python_sources();
-    let metadata = context.temp_dir.child("empty-download-metadata.json");
-    metadata.write_str("{}").unwrap();
-
-    uv_snapshot!(context.filters(), context
-        .python_pin()
-        .arg("--resolved")
-        .arg("3.12")
-        .arg("--python-downloads-json-url")
-        .arg(metadata.path()), @r"
-    exit_code: 2 (failure)
-    ----- stderr -----
-    error: No interpreter found for Python 3.12 in [PYTHON SOURCES]
-    ");
-}
-
-#[tokio::test]
-async fn python_pin_downloads_metadata_once_for_multiple_pins() -> Result<()> {
-    let context = uv_test::test_context_with_versions!(&["3.11", "3.12"]);
-
-    context.temp_dir.child("pyproject.toml").write_str(
-        r#"
-        [project]
-        name = "project"
-        version = "0.1.0"
-        requires-python = ">=3.11"
-        dependencies = []
-        "#,
-    )?;
-
-    context
-        .temp_dir
-        .child(PYTHON_VERSION_FILENAME)
-        .write_str("3.11\n3.12\n")?;
-
-    let server = MockServer::start().await;
-    Mock::given(method("GET"))
-        .respond_with(ResponseTemplate::new(200).set_body_raw("{}", "application/json"))
-        .mount(&server)
-        .await;
-
-    uv_snapshot!(context.filters(), context
-        .python_pin()
-        .arg("--python-downloads-json-url")
-        .arg(server.uri()), @"
-    exit_code: 0 (success)
-    ----- stdout -----
-    3.11
-    3.12
-    ");
-
-    assert_eq!(server.received_requests().await.unwrap().len(), 1);
-
-    Ok(())
-}
-
 // If there is no project-level `.python-version` file, respect the global pin.
 #[test]
 fn python_pin_global_if_no_local() -> Result<()> {
@@ -537,8 +476,6 @@ fn python_pin_resolve_no_python() {
     exit_code: 2 (failure)
     ----- stderr -----
     error: No interpreter found for Python 3.12 in [PYTHON SOURCES]
-
-    hint: A managed Python download is available for Python 3.12, but Python downloads are set to 'never'
     ");
 }
 
@@ -716,29 +653,6 @@ fn python_pin_with_comments() -> Result<()> {
 
     Ok(())
 }
-
-#[test]
-#[cfg(feature = "test-python-managed")]
-fn python_pin_install() {
-    let context = uv_test::test_context_with_versions!(&[]).with_filtered_python_sources();
-
-    // Should not install 3.12 when downloads are not automatic
-    uv_snapshot!(context.filters(), context.python_pin().arg("3.12"), @"
-    exit_code: 0 (success)
-    ----- stdout -----
-    Pinned `.python-version` to `3.12`
-
-    ----- stderr -----
-    warning: No interpreter found for Python 3.12 in [PYTHON SOURCES]
-    ");
-
-    uv_snapshot!(context.filters(), context.python_pin().arg("3.12").env(EnvVars::UV_PYTHON_DOWNLOADS, "auto"), @"
-    exit_code: 0 (success)
-    ----- stdout -----
-    Pinned `.python-version` to `3.12`
-    ");
-}
-
 #[test]
 fn python_pin_rm() {
     let context = uv_test::test_context_with_versions!(&["3.12"]);

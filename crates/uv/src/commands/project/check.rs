@@ -19,7 +19,7 @@ use uv_python::{
     PythonPreference, PythonRequest,
 };
 use uv_scripts::Pep723Script;
-use uv_settings::{MalwareCheckSettings, PythonInstallMirrors};
+use uv_settings::MalwareCheckSettings;
 use uv_warnings::warn_user;
 use uv_workspace::{DiscoveryOptions, VirtualProject, WorkspaceCache, WorkspaceErrorKind};
 
@@ -310,7 +310,7 @@ pub(crate) async fn check(
                 config_discovery,
             )
             .await?;
-            let interpreter = PythonInstallation::find(python_request.as_ref().unwrap_or(&PythonRequest::Default), EnvironmentPreference::Any, python_preference, cache)
+            let interpreter = PythonInstallation::find(python_request.as_ref().unwrap_or(&PythonRequest::Default), EnvironmentPreference::Any, python_preference, cache)?
             .into_interpreter();
 
             if let Some(requires_python) = requires_python.as_ref() {
@@ -512,7 +512,7 @@ pub(crate) async fn check(
                     cache,
                     printer,
                 )
-                .await?
+                ?
                 .into_interpreter(),
             )
         } else {

@@ -2540,8 +2540,7 @@ fn version_get_frozen_workspace_without_python() -> Result<()> {
     uv_snapshot!(context.filters(), context.version()
         .arg("--package").arg("child")
         .arg("--frozen")
-        .arg("--python").arg("9.9")
-        .arg("--no-python-downloads"), @"
+        .arg("--python").arg("9.9"), @"
     exit_code: 0 (success)
     ----- stdout -----
     child 1.0.0

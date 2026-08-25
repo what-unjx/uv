@@ -1,9 +1,6 @@
-use std::env::VarError;
 use std::fmt;
 use std::num::NonZeroUsize;
 use std::path::{Path, PathBuf};
-use std::process;
-use std::str::FromStr;
 use std::time::Duration;
 
 use anyhow::{Result, bail};
@@ -58,8 +55,8 @@ use uv_resolver::{
 };
 use uv_settings::{
     Combine, EnvironmentOptions, FilesystemOptions, IndexOptions, MalwareCheckSettings, Options,
-    PipOptions, PreviewFeaturesOption, PreviewOption, PublishOptions, PythonInstallMirrors,
-    ResolverInstallerOptions, ResolverInstallerSchema, ResolverOptions,
+    PipOptions, PreviewFeaturesOption, PreviewOption, PublishOptions, ResolverInstallerOptions,
+    ResolverInstallerSchema, ResolverOptions,
 };
 use uv_static::EnvVars;
 use uv_torch::{AmdGpuArchitecture, TorchMode};
@@ -69,7 +66,7 @@ use uv_workspace::pyproject_mut::AddBoundsKind;
 
 use crate::commands::pip::operations::Modifications;
 use crate::commands::{
-    InitKind, InitProjectKind, PythonUpgrade, PythonUpgradeSource, ToolRunCommand,
+    InitKind, InitProjectKind, ToolRunCommand,
 };
 
 /// The default publish URL.
@@ -103,7 +100,7 @@ impl GlobalSettings {
     ) -> anyhow::Result<Self> {
         let network_settings =
             NetworkSettings::resolve(args, workspace, environment, custom_certificate_file)?;
-        let python_preference = resolve_python_preference(args, workspace, environment)?;
+        let python_preference = resolve_python_preference(args, workspace);
         let color = resolve_color(args);
         // [第1次试飞后修正]
         // 解析 UV_HOME：优先使用环境变量 UV_HOME，其次使用 uv.toml 中的 home 配置
@@ -194,37 +191,10 @@ pub(crate) fn resolve_color(args: &GlobalArgs) -> ColorChoice {
 fn resolve_python_preference(
     args: &GlobalArgs,
     workspace: Option<&FilesystemOptions>,
-    environment: &EnvironmentOptions,
-) -> anyhow::Result<PythonPreference> {
-    // Resolve flags from CLI and environment variables.
-    let (managed_python, no_managed_python) = resolve_flag_pair(
-        args.managed_python,
-        args.no_managed_python,
-        "managed-python",
-        "no-managed-python",
-        Some(environment.managed_python),
-        Some(environment.no_managed_python),
-    );
-
-    // Check for conflicts between managed_python and python_preference.
-    if managed_python.is_enabled() && args.python_preference.is_some() {
-        check_conflicts(managed_python, Flag::from_cli("python-preference"))?;
-    }
-
-    // Check for conflicts between no_managed_python and python_preference.
-    if no_managed_python.is_enabled() && args.python_preference.is_some() {
-        check_conflicts(no_managed_python, Flag::from_cli("python-preference"))?;
-    }
-
-    Ok(if managed_python.is_enabled() {
-        PythonPreference::OnlyManaged
-    } else if no_managed_python.is_enabled() {
-        PythonPreference::OnlySystem
-    } else {
-        args.python_preference
-            .combine(workspace.and_then(|workspace| workspace.globals.python_preference))
-            .unwrap_or_default()
-    })
+) -> PythonPreference {
+    args.python_preference
+        .combine(workspace.and_then(|workspace| workspace.globals.python_preference))
+        .unwrap_or_default()
 }
 
 /// Resolve the preview setting from CLI, environment, and workspace config.
@@ -482,7 +452,7 @@ impl InitSettings {
     /// Resolve the [`InitSettings`] from the CLI and filesystem configuration.
     pub(crate) fn resolve(
         args: InitArgs,
-        filesystem: Option<FilesystemOptions>,
+        _filesystem: Option<FilesystemOptions>,
         environment: EnvironmentOptions,
     ) -> Result<Self> {
         let InitArgs {
@@ -509,10 +479,6 @@ impl InitSettings {
         } = args;
 
         let bare = resolve_flag(bare, "bare", environment.init_bare).is_enabled();
-
-        let filesystem_install_mirrors = filesystem
-            .map(|fs| fs.install_mirrors.clone())
-            .unwrap_or_default();
 
         let no_description = no_description || (bare && description.is_none());
 
@@ -587,9 +553,6 @@ impl InitSettings {
             pin_python: flag(pin_python, no_pin_python, "pin-python")?.unwrap_or(!bare),
             no_workspace,
             python: python.and_then(Maybe::into_option),
-            install_mirrors: environment
-                .install_mirrors
-                .combine(filesystem_install_mirrors),
         })
     }
 }
@@ -755,11 +718,6 @@ impl RunSettings {
             max_recursion_depth,
         } = args;
 
-        let filesystem_install_mirrors = filesystem
-            .as_ref()
-            .map(|fs| fs.install_mirrors.clone())
-            .unwrap_or_default();
-
         // Resolve flags from CLI and environment variables.
         let locked = resolve_flag(locked, "locked", environment.locked);
         let frozen = resolve_flag(frozen, "frozen", environment.frozen);
@@ -853,9 +811,6 @@ impl RunSettings {
                 &environment,
             )?,
             env_file: EnvFile::from_args(env_file, no_env_file),
-            install_mirrors: environment
-                .install_mirrors
-                .combine(filesystem_install_mirrors),
             max_recursion_depth: max_recursion_depth.unwrap_or(Self::DEFAULT_MAX_RECURSION_DEPTH),
             malware_settings,
             #[cfg(unix)]
@@ -964,10 +919,6 @@ impl ToolRunSettings {
                 .unwrap_or_default(),
         ));
 
-        let filesystem_install_mirrors = filesystem_options
-            .map(|options| options.install_mirrors.clone())
-            .unwrap_or_default();
-
         let mut settings = ResolverInstallerSettings::from(options.clone());
         if torch_backend.is_some() {
             settings.resolver.torch_backend = torch_backend;
@@ -1014,9 +965,6 @@ impl ToolRunSettings {
             refresh: Refresh::try_from(refresh)?,
             settings,
             options,
-            install_mirrors: environment
-                .install_mirrors
-                .combine(filesystem_install_mirrors),
             env_file,
             no_env_file,
         })
@@ -1095,10 +1043,6 @@ impl ToolInstallSettings {
                 .unwrap_or_default(),
         ));
 
-        let filesystem_install_mirrors = filesystem_options
-            .map(|options| options.install_mirrors.clone())
-            .unwrap_or_default();
-
         let mut settings = ResolverInstallerSettings::from(options.clone());
         if torch_backend.is_some() {
             settings.resolver.torch_backend = torch_backend;
@@ -1148,9 +1092,6 @@ impl ToolInstallSettings {
             refresh: Refresh::try_from(refresh)?,
             options,
             settings,
-            install_mirrors: environment
-                .install_mirrors
-                .combine(filesystem_install_mirrors),
         })
     }
 }
@@ -1224,10 +1165,6 @@ impl ToolUpgradeSettings {
             environment,
         );
         let filesystem = filesystem.map(FilesystemOptions::into_options);
-        let filesystem_install_mirrors = filesystem
-            .as_ref()
-            .map(|options| options.install_mirrors.clone())
-            .unwrap_or_default();
         let top_level = ResolverInstallerOptions::from(
             filesystem
                 .map(|options| options.top_level)
@@ -1240,10 +1177,6 @@ impl ToolUpgradeSettings {
             python_platform,
             args,
             filesystem: top_level,
-            install_mirrors: environment
-                .install_mirrors
-                .clone()
-                .combine(filesystem_install_mirrors),
         })
     }
 }
@@ -1280,7 +1213,6 @@ impl ToolListSettings {
                     exclude_newer: ExcludeNewerArgs { exclude_newer },
                     exclude_newer_package,
                 },
-            python_preference: _,
         } = args;
 
         let top_level = filesystem
@@ -1587,11 +1519,6 @@ impl SyncSettings {
             no_check,
             output_format,
         } = args;
-        let filesystem_install_mirrors = filesystem
-            .as_ref()
-            .map(|fs| fs.install_mirrors.clone())
-            .unwrap_or_default();
-
         let malware_settings = MalwareCheckSettings::resolve(filesystem.as_ref(), &environment);
         let settings =
             ResolverInstallerSettings::resolve(installer, build, filesystem, &environment)?;
@@ -1720,9 +1647,6 @@ impl SyncSettings {
             python_platform,
             refresh: Refresh::try_from(refresh)?,
             settings,
-            install_mirrors: environment
-                .install_mirrors
-                .combine(filesystem_install_mirrors),
             malware_settings,
         })
     }
@@ -1759,11 +1683,6 @@ impl LockSettings {
             python,
         } = args;
 
-        let filesystem_install_mirrors = filesystem
-            .as_ref()
-            .map(|fs| fs.install_mirrors.clone())
-            .unwrap_or_default();
-
         // Resolve flags from CLI and environment variables.
         let locked = resolve_flag(locked, "locked", environment.locked);
         let frozen = resolve_flag(check_exists, "frozen", environment.frozen);
@@ -1785,9 +1704,6 @@ impl LockSettings {
             python: python.and_then(Maybe::into_option),
             refresh: Refresh::try_from(refresh)?,
             settings: ResolverSettings::resolve(resolver, build, filesystem, &environment)?,
-            install_mirrors: environment
-                .install_mirrors
-                .combine(filesystem_install_mirrors),
         })
     }
 }
@@ -1807,10 +1723,6 @@ impl UpgradeSettings {
         filesystem: Option<FilesystemOptions>,
         environment: EnvironmentOptions,
     ) -> Self {
-        let filesystem_install_mirrors = filesystem
-            .as_ref()
-            .map(|fs| fs.install_mirrors.clone())
-            .unwrap_or_default();
         let packages = args.packages;
         let exclude = args.exclude;
         let mut settings =
@@ -1824,9 +1736,6 @@ impl UpgradeSettings {
         Self {
             packages,
             exclude,
-            install_mirrors: environment
-                .install_mirrors
-                .combine(filesystem_install_mirrors),
             settings,
         }
     }
@@ -1869,11 +1778,6 @@ impl MetadataSettings {
             python,
         } = *args;
 
-        let filesystem_install_mirrors = filesystem
-            .as_ref()
-            .map(|fs| fs.install_mirrors.clone())
-            .unwrap_or_default();
-
         // Resolve flags from CLI and environment variables.
         let locked = resolve_flag(locked, "locked", environment.locked);
         let frozen = resolve_flag(frozen, "frozen", environment.frozen);
@@ -1897,9 +1801,6 @@ impl MetadataSettings {
             python: python.and_then(Maybe::into_option),
             refresh: Refresh::try_from(refresh)?,
             settings: ResolverSettings::resolve(resolver, build, filesystem, &environment)?,
-            install_mirrors: environment
-                .install_mirrors
-                .combine(filesystem_install_mirrors),
             malware_settings,
         })
     }
@@ -2076,11 +1977,6 @@ impl AddSettings {
             }
         }
 
-        let filesystem_install_mirrors = filesystem
-            .as_ref()
-            .map(|fs| fs.install_mirrors.clone())
-            .unwrap_or_default();
-
         let bounds = bounds.or(filesystem.as_ref().and_then(|fs| fs.add.add_bounds));
         let lfs = GitLfsSetting::new(lfs.then_some(true), environment.lfs);
 
@@ -2175,9 +2071,6 @@ impl AddSettings {
             refresh,
             indexes,
             settings: ResolverInstallerSettings::combine(options, filesystem, &environment),
-            install_mirrors: environment
-                .install_mirrors
-                .combine(filesystem_install_mirrors),
             malware_settings,
         })
     }
@@ -2239,11 +2132,6 @@ impl RemoveSettings {
             DependencyType::Production
         };
 
-        let filesystem_install_mirrors = filesystem
-            .as_ref()
-            .map(|fs| fs.install_mirrors.clone())
-            .unwrap_or_default();
-
         let packages = packages
             .into_iter()
             .map(|requirement| requirement.name)
@@ -2279,9 +2167,6 @@ impl RemoveSettings {
                 filesystem,
                 &environment,
             )?,
-            install_mirrors: environment
-                .install_mirrors
-                .combine(filesystem_install_mirrors),
             malware_settings,
         })
     }
@@ -2331,11 +2216,6 @@ impl VersionSettings {
             python,
         } = args;
 
-        let filesystem_install_mirrors = filesystem
-            .as_ref()
-            .map(|fs| fs.install_mirrors.clone())
-            .unwrap_or_default();
-
         // Resolve flags from CLI and environment variables.
         let locked = resolve_flag(locked, "locked", environment.locked);
         let frozen = resolve_flag(frozen, "frozen", environment.frozen);
@@ -2368,9 +2248,6 @@ impl VersionSettings {
                 filesystem,
                 &environment,
             )?,
-            install_mirrors: environment
-                .install_mirrors
-                .combine(filesystem_install_mirrors),
             malware_settings,
         })
     }
@@ -2431,11 +2308,6 @@ impl TreeSettings {
             python,
         } = args;
 
-        let filesystem_install_mirrors = filesystem
-            .as_ref()
-            .map(|fs| fs.install_mirrors.clone())
-            .unwrap_or_default();
-
         // Resolve flags from CLI and environment variables.
         let locked = resolve_flag(locked, "locked", environment.locked);
         let frozen = resolve_flag(frozen, "frozen", environment.frozen);
@@ -2481,9 +2353,6 @@ impl TreeSettings {
             python_platform,
             python: python.and_then(Maybe::into_option),
             resolver: ResolverSettings::resolve(resolver, build, filesystem, &environment)?,
-            install_mirrors: environment
-                .install_mirrors
-                .combine(filesystem_install_mirrors),
         })
     }
 }
@@ -2571,11 +2440,6 @@ impl ExportSettings {
             script,
             python,
         } = args;
-        let filesystem_install_mirrors = filesystem
-            .as_ref()
-            .map(|fs| fs.install_mirrors.clone())
-            .unwrap_or_default();
-
         // Resolve flags from CLI and environment variables.
         let locked = resolve_flag(locked, "locked", environment.locked);
         let frozen = resolve_flag(frozen_cli, "frozen", environment.frozen);
@@ -2654,9 +2518,6 @@ impl ExportSettings {
             python: python.and_then(Maybe::into_option),
             refresh: Refresh::try_from(refresh)?,
             settings: ResolverSettings::resolve(resolver, build, filesystem, &environment)?,
-            install_mirrors: environment
-                .install_mirrors
-                .combine(filesystem_install_mirrors),
         })
     }
 }
@@ -2774,11 +2635,6 @@ impl CheckSettings {
             refresh,
         } = args;
 
-        let filesystem_install_mirrors = filesystem
-            .as_ref()
-            .map(|fs| fs.install_mirrors.clone())
-            .unwrap_or_default();
-
         let locked = resolve_flag(locked, "locked", environment.locked);
         let frozen = resolve_flag(frozen, "frozen", environment.frozen);
         let no_sync = resolve_flag(no_sync, "no-sync", environment.no_sync);
@@ -2839,9 +2695,6 @@ impl CheckSettings {
             no_install_project: no_install_project.is_enabled(),
             isolated,
             python: python.and_then(Maybe::into_option),
-            install_mirrors: environment
-                .install_mirrors
-                .combine(filesystem_install_mirrors),
             refresh: Refresh::try_from(refresh)?,
             settings,
             ty_version,
@@ -2901,11 +2754,6 @@ impl AuditSettings {
             resolver,
         } = args;
 
-        let filesystem_install_mirrors = filesystem
-            .as_ref()
-            .map(|fs| fs.install_mirrors.clone())
-            .unwrap_or_default();
-
         let filesystem_audit = filesystem
             .as_ref()
             .and_then(|fs| fs.audit.clone())
@@ -2947,9 +2795,6 @@ impl AuditSettings {
             python_version,
             python_platform,
             settings: ResolverSettings::resolve(resolver, build, filesystem, &environment)?,
-            install_mirrors: environment
-                .install_mirrors
-                .combine(filesystem_install_mirrors),
             output_format,
             service_format,
             service_url,
@@ -3861,10 +3706,6 @@ impl BuildSettings {
             refresh,
             resolver,
         } = args;
-        let filesystem_install_mirrors = match &filesystem {
-            Some(fs) => fs.install_mirrors.clone(),
-            None => PythonInstallMirrors::default(),
-        };
         let build_constraints_from_workspace = if let Some(configuration) = &filesystem {
             configuration
                 .build_constraint_dependencies
@@ -3904,9 +3745,6 @@ impl BuildSettings {
             python: python.and_then(Maybe::into_option),
             refresh: Refresh::try_from(refresh)?,
             settings: ResolverSettings::resolve(resolver, build, filesystem, &environment)?,
-            install_mirrors: environment
-                .install_mirrors
-                .combine(filesystem_install_mirrors),
         })
     }
 }
@@ -4379,7 +4217,6 @@ impl PipSettings {
         let Options {
             top_level,
             pip,
-            install_mirrors: filesystem_install_mirrors,
             ..
         } = filesystem
             .map(FilesystemOptions::into_options)
@@ -4744,9 +4581,6 @@ impl PipSettings {
                     top_level_no_build_package.unwrap_or_default(),
                 )),
             ),
-            install_mirrors: environment
-                .install_mirrors
-                .combine(filesystem_install_mirrors),
         }
     }
 }
@@ -4933,34 +4767,10 @@ impl AuthLoginSettings {
 }
 
 
-/// Attempt to load and parse an environment variable with the given name.
-///
-/// Exits the program and prints an error message containing the expected type if
-/// parsing values.
-fn env<T>((name, expected): (&str, &str)) -> Option<T>
-where
-    T: FromStr,
-{
-    let val = match std::env::var(name) {
-        Ok(val) => val,
-        Err(VarError::NotPresent) => return None,
-        Err(VarError::NotUnicode(_)) => parse_failure(name, expected),
-    };
-    Some(
-        val.parse()
-            .unwrap_or_else(|_| parse_failure(name, expected)),
-    )
-}
-
-/// Prints a parse error and exits the process.
-#[expect(clippy::exit, clippy::print_stderr)]
-fn parse_failure(name: &str, expected: &str) -> ! {
-    eprintln!("error: invalid value for {name}, expected {expected}");
-    process::exit(1)
-}
-
 #[cfg(test)]
 mod tests {
+    use std::str::FromStr;
+
     use super::*;
 
     #[test]

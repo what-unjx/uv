@@ -5,7 +5,6 @@ use uv_cli::PythonListFormat;
 use uv_pep440::Version;
 
 use anyhow::Result;
-use itertools::Either;
 use owo_colors::OwoColorize;
 use rustc_hash::FxHashSet;
 use uv_cache::Cache;
@@ -60,7 +59,7 @@ pub(crate) async fn list(
     for installation in installations {
         output.insert((
             installation.key(),
-            Either::Left(installation.interpreter().real_executable().to_path_buf()),
+            installation.interpreter().real_executable().to_path_buf(),
         ));
     }
 
@@ -109,17 +108,13 @@ pub(crate) async fn list(
         PythonListFormat::Json => {
             let data = include
                 .iter()
-                .map(|(key, uri)| -> Result<_> {
-                    let mut path_or_none: Option<String> = None;
+                .map(|(key, path)| -> Result<_> {
+                    let path_or_none = Some(path.user_display().to_string());
                     let mut symlink_or_none: Option<String> = None;
-                    if let Either::Left(path) = uri {
-                        path_or_none = Some(path.user_display().to_string());
 
-                        let is_symlink = fs_err::symlink_metadata(path)?.is_symlink();
-                        if is_symlink {
-                            symlink_or_none =
-                                Some(path.read_link()?.user_display().to_string());
-                        }
+                    let is_symlink = fs_err::symlink_metadata(path)?.is_symlink();
+                    if is_symlink {
+                        symlink_or_none = Some(path.read_link()?.user_display().to_string());
                     }
                     let version = key.version();
                     let release = version.release();

@@ -63,13 +63,13 @@ impl EnvVars {
     #[attr_added_in("0.9.8")]
     pub const UV_NO_SOURCES: &'static str = "UV_NO_SOURCES";
 
-    /// Specifies the root directory for all uv storage (cache, tools, Python installations, credentials, etc.).
+    /// Specifies the root directory for all `uv` storage (cache, tools, Python installations, credentials, etc.).
     ///
     /// When set, all storage subdirectories are created under this path:
     /// `cache/`, `data/tools/`, `data/python/`, `data/credentials/`, `bin/`.
     ///
     /// This is the single source of truth for uv's storage layout; no other directory
-    /// environment variables exist. uv requires `UV_HOME` (or the `home` setting in `uv.toml`)
+    /// environment variables exist. `uv` requires `UV_HOME` (or the `home` setting in `uv.toml`)
     /// to be configured and errors if it is unset.
     ///
     /// [第1次试飞后修正]
@@ -218,20 +218,6 @@ impl EnvVars {
     /// Whether uv should prefer system or managed Python versions.
     #[attr_added_in("0.3.2")]
     pub const UV_PYTHON_PREFERENCE: &'static str = "UV_PYTHON_PREFERENCE";
-
-    /// Require use of uv-managed Python versions.
-    #[attr_added_in("0.6.8")]
-    pub const UV_MANAGED_PYTHON: &'static str = "UV_MANAGED_PYTHON";
-
-    /// Disable use of uv-managed Python versions.
-    #[attr_added_in("0.6.8")]
-    pub const UV_NO_MANAGED_PYTHON: &'static str = "UV_NO_MANAGED_PYTHON";
-
-    /// Equivalent to the
-    /// [`python-downloads`](../reference/settings.md#python-downloads) setting and, when disabled, the
-    /// `--no-python-downloads` option. Whether uv should allow Python downloads.
-    #[attr_added_in("0.3.2")]
-    pub const UV_PYTHON_DOWNLOADS: &'static str = "UV_PYTHON_DOWNLOADS";
 
     /// Overrides the environment-determined libc on linux systems when filling in the current platform
     /// within Python version requests. Options are: `gnu`, `gnueabi`, `gnueabihf`, `musl`,
@@ -453,14 +439,6 @@ impl EnvVars {
     #[attr_added_in("0.4.4")]
     pub const UV_PROJECT_ENVIRONMENT: &'static str = "UV_PROJECT_ENVIRONMENT";
 
-    /// Whether to install the Python executable into the `bin` directory under `UV_HOME`.
-    #[attr_added_in("0.8.0")]
-    pub const UV_PYTHON_INSTALL_BIN: &'static str = "UV_PYTHON_INSTALL_BIN";
-
-    /// Whether to install the Python executable into the Windows registry.
-    #[attr_added_in("0.8.0")]
-    pub const UV_PYTHON_INSTALL_REGISTRY: &'static str = "UV_PYTHON_INSTALL_REGISTRY";
-
     /// Disable use of the Windows registry for Python discovery and registration.
     ///
     /// When set, uv will not discover Python interpreters from the Windows registry or Microsoft
@@ -468,39 +446,6 @@ impl EnvVars {
     /// registry.
     #[attr_added_in("0.11.8")]
     pub const UV_PYTHON_NO_REGISTRY: &'static str = "UV_PYTHON_NO_REGISTRY";
-
-    /// Managed Python installations information is hardcoded in the `uv` binary.
-    ///
-    /// This variable can be set to a local path or URL pointing to
-    /// a JSON list of Python installations to override the hardcoded list.
-    ///
-    /// This allows customizing the URLs for downloads or using slightly older or newer versions
-    /// of Python than the ones hardcoded into this build of `uv`.
-    #[attr_added_in("0.6.13")]
-    pub const UV_PYTHON_DOWNLOADS_JSON_URL: &'static str = "UV_PYTHON_DOWNLOADS_JSON_URL";
-
-    /// Managed Python installations are downloaded from the Astral
-    /// [`python-build-standalone`](https://github.com/astral-sh/python-build-standalone) project.
-    ///
-    /// This variable can be set to a mirror URL to use a different source for Python installations.
-    /// The provided URL will replace `https://github.com/astral-sh/python-build-standalone/releases/download` in, e.g.,
-    /// `https://github.com/astral-sh/python-build-standalone/releases/download/20240713/cpython-3.12.4%2B20240713-aarch64-apple-darwin-install_only.tar.gz`.
-    /// Distributions can be read from a local directory by using the `file://` URL scheme.
-    ///
-    /// This more-specific mirror takes precedence over
-    /// [`UV_ASTRAL_MIRROR_URL`](Self::UV_ASTRAL_MIRROR_URL) for CPython downloads.
-    #[attr_added_in("0.2.35")]
-    pub const UV_PYTHON_INSTALL_MIRROR: &'static str = "UV_PYTHON_INSTALL_MIRROR";
-
-    /// Managed PyPy installations are downloaded from [python.org](https://downloads.python.org/).
-    ///
-    /// This variable can be set to a mirror URL to use a
-    /// different source for PyPy installations. The provided URL will replace
-    /// `https://downloads.python.org/pypy` in, e.g.,
-    /// `https://downloads.python.org/pypy/pypy3.8-v7.3.7-osx64.tar.bz2`.
-    /// Distributions can be read from a local directory by using the `file://` URL scheme.
-    #[attr_added_in("0.2.35")]
-    pub const UV_PYPY_INSTALL_MIRROR: &'static str = "UV_PYPY_INSTALL_MIRROR";
 
     /// Replaces the `https://releases.astral.sh` base URL for all Astral-mirrored
     /// metadata and artifact downloads.
@@ -514,8 +459,6 @@ impl EnvVars {
     /// mirror `releases.astral.sh`.
     ///
     /// More-specific sources take precedence:
-    /// [`UV_PYTHON_INSTALL_MIRROR`](Self::UV_PYTHON_INSTALL_MIRROR) and
-    /// `python-install-mirror` override this variable for CPython downloads, while
     /// [`UV_INSTALLER_GITHUB_BASE_URL`](Self::UV_INSTALLER_GITHUB_BASE_URL) and
     /// [`UV_INSTALLER_GHE_BASE_URL`](Self::UV_INSTALLER_GHE_BASE_URL) override this
     /// variable for `uv self update`.
@@ -699,11 +642,6 @@ impl EnvVars {
     #[attr_hidden]
     #[attr_added_in("0.10.9")]
     pub const UV_INTERNAL__TEST_LOWLINKS_FS: &'static str = "UV_INTERNAL__TEST_LOWLINKS_FS";
-
-    /// Used to force treating an interpreter as "managed" during tests.
-    #[attr_hidden]
-    #[attr_added_in("0.8.0")]
-    pub const UV_INTERNAL__TEST_PYTHON_MANAGED: &'static str = "UV_INTERNAL__TEST_PYTHON_MANAGED";
 
     /// Used to force ignoring Git LFS commands as `git-lfs` detection cannot be overridden via PATH.
     #[attr_hidden]
