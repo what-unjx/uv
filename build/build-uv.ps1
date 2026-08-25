@@ -23,7 +23,9 @@ param(
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 
-Set-Location -LiteralPath $PSScriptRoot
+# 脚本位于 <仓库根>\build\ 下，仓库根为上一级目录
+$RepoRoot = (Resolve-Path -LiteralPath "$PSScriptRoot\..").Path
+Set-Location -LiteralPath $RepoRoot
 
 cargo build `
     --release `
@@ -34,7 +36,7 @@ cargo build `
     --config 'profile.release.codegen-units=1'
 
 if ($LASTEXITCODE -eq 0) {
-    $exe = Join-Path $PSScriptRoot 'target\release\uv.exe'
+    $exe = Join-Path $RepoRoot 'target\release\uv.exe'
     $size = '{0:N1} MiB' -f ((Get-Item -LiteralPath $exe).Length / 1MB)
     Write-Host "`n构建成功: $exe ($size)" -ForegroundColor Green
 } else {
