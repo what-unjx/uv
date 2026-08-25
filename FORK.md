@@ -14,11 +14,11 @@
 
 ## 构建
 
-仓库根目录提供一键构建脚本：
+`build\` 目录下提供构建与打包脚本：
 
 ```powershell
-.\build-uv.ps1                          # 默认特性: performance, self-update
-.\build-uv.ps1 -Features performance    # 自定义特性列表
+.\build\build-uv.ps1                          # 默认特性: performance, self-update
+.\build\build-uv.ps1 -Features performance    # 自定义特性列表
 ```
 
 在标准 release 配置（`strip` + `lto = "fat"` + `panic = "abort"`，Windows 下启用
@@ -32,10 +32,21 @@ mimalloc v2 分配器）基础上，追加 `codegen-units = 1` 以获得更好�
 
 1. 提交全部变更，确保工作区干净；
 2. 打标签：`git tag -a v<上游版本>-unjx.<序号> -m "<说明>"` 并推送；
-3. 打包产物并创建 Release：
+3. 本地打包（Bandizip CLI，输出 7z 到 `dist\`，按体积自动选择压缩级别）：
 
    ```powershell
-   $zip = "uv-v0.12.5-unjx.2-x86_64-pc-windows-msvc.zip"
-   Compress-Archive -Path target\release\uv.exe, target\release\uvx.exe -DestinationPath $zip -Force
-   gh release create v0.12.5-unjx.2 --title "v0.12.5-unjx.2" --notes-file <notes.md> --latest $zip
+   .\build\pack-release.ps1 -Tag v0.12.5-unjx.2
    ```
+
+   分档规则：内容 <16 MiB 仅存储；16~32 MiB 正常压缩；>32 MiB 极限压缩。
+
+4. 创建 Release：
+
+   ```powershell
+   gh release create v0.12.5-unjx.2 --repo what-unjx/uv `
+       --title "uv v0.12.5-unjx.2" --latest `
+       --notes-file <notes.md> dist\uv-v0.12.5-unjx.2-x86_64-pc-windows-msvc.7z
+   ```
+
+   注意：本仓库 `gh` 默认解析到上游 astral-sh/uv，命令必须带
+   `--repo what-unjx/uv`。
