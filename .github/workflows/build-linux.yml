@@ -1,10 +1,16 @@
-# 手动触发的 Linux 构建（fork 定制）。
+# Linux 构建（fork 定制）。
 #
-# 阶段 1：验证 fork 代码能在 Linux 上编译，并产出可运行的 `uv` / `uvx`。
+# 阶段 2：在阶段 1（gnu 构建）基础上加入 `x86_64-unknown-linux-musl` 静态构建，
+# 并校验产物确实是静态链接。
 #
-# 目标为 `x86_64-unknown-linux-gnu`，在 `ubuntu-24.04` 上原生构建（不交叉），
-# 因此产物要求 glibc >= 2.39，只适用于 Ubuntu 24.04 及更新的发行版。
-# 后续阶段会切换到 musl 静态构建以支持更广泛的发行版。
+# 两个目标的定位：
+# - `x86_64-unknown-linux-gnu`：在 `ubuntu-24.04` 上原生构建，要求 glibc >= 2.39，
+#   仅适用于 Ubuntu 24.04 及更新的发行版；
+# - `x86_64-unknown-linux-musl`：全静态，不依赖目标机的 libc，可携带到任意 Linux。
+#
+# musl 目标在 Linux 上只需一个面向 musl 的 C 编译器（`musl-tools` 的 `musl-gcc`）：
+# 依赖树里需要 C 工具链的只有 `aws-lc-sys`（C + 汇编，无 C++）与 `zstd-sys`/jemalloc。
+# Rust 侧 musl 目标自带 self-contained 链接，无需额外 sysroot。
 #
 # 触发方式：
 # - 推送 `local-mods` 分支且改动命中下方 `paths` 时自动构建；
@@ -31,36 +37,62 @@ permissions:
 
 jobs:
   linux-x86_64:
-    name: x86_64-unknown-linux-gnu
+    name: ${{ matrix.target }}
     runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        target:
+          - x86_64-unknown-linux-gnu
+          - x86_64-unknown-linux-musl
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
 
+      # 只有 musl 目标需要面向 musl 的 C 编译器。
+      - name: "Install musl toolchain"
+        if: matrix.target == 'x86_64-unknown-linux-musl'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y musl-tools
+
       # `rust-toolchain.toml` 固定了工具链版本，rustup 会在首次调用 cargo 时自动安装。
       - name: "Show toolchain"
-        run: rustc --version && cargo --version
+        run: |
+          rustc --version && cargo --version
+          rustup target add ${{ matrix.target }}
 
       # 不追加 `codegen-units = 1`，先以标准 release 配置换取更快的反馈。
       # 与 `build/build-uv.ps1` 的差异：Linux 侧不需要 `self-update`
       # （其下载源硬编码为 astral-sh/uv，见 `crates/uv/src/commands/self_update.rs`）。
       - name: "Build uv"
+        env:
+          # cc-rs 按目标三元组读取，因此不影响 gnu 目标。
+          CC_x86_64_unknown_linux_musl: musl-gcc
         run: |
           cargo build --release --locked -p uv \
-            --no-default-features --features performance
+            --no-default-features --features performance \
+            --target ${{ matrix.target }}
 
       - name: "Smoke test"
         env:
           # 本 fork 要求配置 UV_HOME（见 `crates/uv-static/src/env_vars.rs`）。
           UV_HOME: ${{ runner.temp }}/uv-home
-        run: ./target/release/uv --version
+        run: ./target/${{ matrix.target }}/release/uv --version
+
+      # 阶段 2 的核心验收点：确认 musl 产物是全静态的。
+      - name: "Verify static linking"
+        if: matrix.target == 'x86_64-unknown-linux-musl'
+        run: |
+          file target/${{ matrix.target }}/release/uv
+          file target/${{ matrix.target }}/release/uv | grep -qE 'statically linked|static-pie linked'
 
       - name: "Upload binaries"
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
-          name: uv-x86_64-unknown-linux-gnu
+          name: uv-${{ matrix.target }}
           path: |
-            target/release/uv
-            target/release/uvx
+            target/${{ matrix.target }}/release/uv
+            target/${{ matrix.target }}/release/uvx
           if-no-files-found: error
