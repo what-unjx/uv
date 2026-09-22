@@ -1,0 +1,66 @@
+# 手动触发的 Linux 构建（fork 定制）。
+#
+# 阶段 1：验证 fork 代码能在 Linux 上编译，并产出可运行的 `uv` / `uvx`。
+#
+# 目标为 `x86_64-unknown-linux-gnu`，在 `ubuntu-24.04` 上原生构建（不交叉），
+# 因此产物要求 glibc >= 2.39，只适用于 Ubuntu 24.04 及更新的发行版。
+# 后续阶段会切换到 musl 静态构建以支持更广泛的发行版。
+#
+# 触发方式：
+# - 推送 `local-mods` 分支且改动命中下方 `paths` 时自动构建；
+# - 或 GitHub Actions 页面手动 Run workflow（`workflow_dispatch`）。
+#
+# 注意：`workflow_dispatch` 要求本文件存在于仓库默认分支（当前为 `main`）。
+# 在文件尚未进入 `main` 之前，只能靠 `push` 触发；后续可将文件同步到 `main`，
+# 或把仓库默认分支切换为 `local-mods`，以启用手动触发。
+name: "Build uv for Ubuntu 24.04"
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [local-mods]
+    paths:
+      - .github/workflows/build-linux.yml
+      - Cargo.toml
+      - Cargo.lock
+      - rust-toolchain.toml
+      - crates/**
+
+permissions:
+  contents: read
+
+jobs:
+  linux-x86_64:
+    name: x86_64-unknown-linux-gnu
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      # `rust-toolchain.toml` 固定了工具链版本，rustup 会在首次调用 cargo 时自动安装。
+      - name: "Show toolchain"
+        run: rustc --version && cargo --version
+
+      # 不追加 `codegen-units = 1`，先以标准 release 配置换取更快的反馈。
+      # 与 `build/build-uv.ps1` 的差异：Linux 侧不需要 `self-update`
+      # （其下载源硬编码为 astral-sh/uv，见 `crates/uv/src/commands/self_update.rs`）。
+      - name: "Build uv"
+        run: |
+          cargo build --release --locked -p uv \
+            --no-default-features --features performance
+
+      - name: "Smoke test"
+        env:
+          # 本 fork 要求配置 UV_HOME（见 `crates/uv-static/src/env_vars.rs`）。
+          UV_HOME: ${{ runner.temp }}/uv-home
+        run: ./target/release/uv --version
+
+      - name: "Upload binaries"
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: uv-x86_64-unknown-linux-gnu
+          path: |
+            target/release/uv
+            target/release/uvx
+          if-no-files-found: error
