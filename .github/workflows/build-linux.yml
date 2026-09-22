@@ -1,62 +1,51 @@
-# Linux 构建（fork 定制）。
+# Linux 构建与发布（fork 定制）。
 #
-# 阶段 3：为 `x86_64-unknown-linux-musl` 追加 zip 打包（含 `.sha256`）。
+# 阶段 4：仅由 tag 推送触发，构建 `x86_64-unknown-linux-musl` 静态产物，
+# 打包为 zip 并创建 GitHub Release（只挂 zip 与 `.sha256`）。
 #
-# 两个目标的定位：
-# - `x86_64-unknown-linux-gnu`：在 `ubuntu-24.04` 上原生构建，要求 glibc >= 2.39，
-#   仅适用于 Ubuntu 24.04 及更新的发行版；只上传裸二进制，不打 zip。
-# - `x86_64-unknown-linux-musl`：全静态，不依赖目标机的 libc，可携带到任意 Linux；
-#   打包为 `uv-<version>-x86_64-unknown-linux-musl.zip`（内含 `uv` 与 `uvx` 两个文件）。
+# 命名约定对齐 `FORK.md` 的 Windows 发布流程：
+# - tag：`v<上游版本>-unjx.<序号>`，例如 `v0.12.5-unjx.3`
+# - 归档：`uv-<tag>-<target>.zip`，例如 `uv-v0.12.5-unjx.3-x86_64-unknown-linux-musl.zip`
+#   （Windows 侧对应 `uv-<tag>-x86_64-pc-windows-msvc.7z`）
+#
+# 为什么只做 musl：产物为 `static-pie` 全静态，不依赖目标机 libc，
+# 在 Ubuntu 24.04 与更新的发行版上都能直接运行。gnu 目标此前仅用于验证
+# fork 在 Linux 上可编译，其作用已由 musl 构建覆盖，因此不再进入发布链路。
 #
 # zip 在 Linux 侧生成，因此会正确记录可执行权限位，解压后无需 `chmod +x`。
-# 归档采用平铺结构（`zip -j`）：解压后即得到同目录下的 `uv` 与 `uvx`，
-# 而 `uvx` 会查找同目录的 `uv`（见 `crates/uv/src/bin/uvx.rs`），二者必须放在一起。
+# 归档采用平铺结构（`zip -j`）：解压后即得到同目录下的 `uv` 与 `uvx`；
+# `uvx` 会查找同目录的 `uv`（见 `crates/uv/src/bin/uvx.rs`），二者必须放在一起。
 #
 # musl 目标在 Linux 上只需一个面向 musl 的 C 编译器（`musl-tools` 的 `musl-gcc`）：
 # 依赖树里需要 C 工具链的只有 `aws-lc-sys`（C + 汇编，无 C++）与 `zstd-sys`/jemalloc。
 # Rust 侧 musl 目标自带 self-contained 链接，无需额外 sysroot。
 #
-# 触发方式：
-# - 推送 `local-mods` 分支且改动命中下方 `paths` 时自动构建；
-# - 或 GitHub Actions 页面手动 Run workflow（`workflow_dispatch`）。
-#
-# 注意：`workflow_dispatch` 要求本文件存在于仓库默认分支（当前为 `main`）。
-# 在文件尚未进入 `main` 之前，只能靠 `push` 触发；后续可将文件同步到 `main`，
-# 或把仓库默认分支切换为 `local-mods`，以启用手动触发。
-name: "Build uv for Ubuntu 24.04"
+# 注意：本文件必须已存在于被打 tag 的那个提交上，tag 推送才会触发本 workflow。
+name: "Release uv for Ubuntu 24.04 (musl)"
 
 on:
-  workflow_dispatch:
   push:
-    branches: [local-mods]
-    paths:
-      - .github/workflows/build-linux.yml
-      - Cargo.toml
-      - Cargo.lock
-      - rust-toolchain.toml
-      - crates/**
+    tags:
+      - 'v*-unjx.*'
 
+# 创建 Release 需要写权限；其余步骤只需要读。
 permissions:
-  contents: read
+  contents: write
 
 jobs:
-  linux-x86_64:
-    name: ${{ matrix.target }}
+  linux-musl:
+    name: x86_64-unknown-linux-musl
     runs-on: ubuntu-24.04
-    strategy:
-      fail-fast: false
-      matrix:
-        target:
-          - x86_64-unknown-linux-gnu
-          - x86_64-unknown-linux-musl
+    env:
+      TARGET: x86_64-unknown-linux-musl
+      # cc-rs 按目标三元组读取。
+      CC_x86_64_unknown_linux_musl: musl-gcc
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
 
-      # 只有 musl 目标需要面向 musl 的 C 编译器。
       - name: "Install musl toolchain"
-        if: matrix.target == 'x86_64-unknown-linux-musl'
         run: |
           sudo apt-get update
           sudo apt-get install -y musl-tools zip unzip
@@ -65,45 +54,35 @@ jobs:
       - name: "Show toolchain"
         run: |
           rustc --version && cargo --version
-          rustup target add ${{ matrix.target }}
+          rustup target add "${TARGET}"
 
       # 不追加 `codegen-units = 1`，先以标准 release 配置换取更快的反馈。
       # 与 `build/build-uv.ps1` 的差异：Linux 侧不需要 `self-update`
       # （其下载源硬编码为 astral-sh/uv，见 `crates/uv/src/commands/self_update.rs`）。
       - name: "Build uv"
-        env:
-          # cc-rs 按目标三元组读取，因此不影响 gnu 目标。
-          CC_x86_64_unknown_linux_musl: musl-gcc
         run: |
           cargo build --release --locked -p uv \
             --no-default-features --features performance \
-            --target ${{ matrix.target }}
+            --target "${TARGET}"
 
       - name: "Smoke test"
         env:
           # 本 fork 要求配置 UV_HOME（见 `crates/uv-static/src/env_vars.rs`）。
           UV_HOME: ${{ runner.temp }}/uv-home
-        run: ./target/${{ matrix.target }}/release/uv --version
+        run: ./target/${TARGET}/release/uv --version
 
-      # 阶段 2 的核心验收点：确认 musl 产物是全静态的。
       - name: "Verify static linking"
-        if: matrix.target == 'x86_64-unknown-linux-musl'
         run: |
-          file target/${{ matrix.target }}/release/uv
-          file target/${{ matrix.target }}/release/uv | grep -qE 'statically linked|static-pie linked'
+          file target/${TARGET}/release/uv
+          file target/${TARGET}/release/uv | grep -qE 'statically linked|static-pie linked'
 
-      # 阶段 4 接入 Release 时，归档名会改为携带 fork 标签（如 `v0.12.5-unjx.N`）。
       - name: "Package zip"
-        if: matrix.target == 'x86_64-unknown-linux-musl'
-        env:
-          UV_HOME: ${{ runner.temp }}/uv-home
         run: |
           set -euo pipefail
-          VERSION=$(./target/${{ matrix.target }}/release/uv --version | awk '{print $2}')
-          ARCHIVE="uv-${VERSION}-${{ matrix.target }}.zip"
+          ARCHIVE="uv-${{ github.ref_name }}-${TARGET}.zip"
           mkdir -p dist/pkg
-          cp target/${{ matrix.target }}/release/uv dist/pkg/
-          cp target/${{ matrix.target }}/release/uvx dist/pkg/
+          cp target/${TARGET}/release/uv dist/pkg/
+          cp target/${TARGET}/release/uvx dist/pkg/
           # `-j` 平铺：压缩包内只有 `uv` 与 `uvx` 两个条目（保留可执行权限位）。
           (cd dist/pkg && zip -j "../${ARCHIVE}" uv uvx)
           sha256sum "dist/${ARCHIVE}" > "dist/${ARCHIVE}.sha256"
@@ -116,22 +95,43 @@ jobs:
           (cd dist/verify && unzip -q "../${ARCHIVE}" && test -x uv && test -x uvx)
           echo "executable bits preserved"
 
-      - name: "Upload binaries"
-        if: matrix.target == 'x86_64-unknown-linux-gnu'
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
-        with:
-          name: uv-${{ matrix.target }}
-          path: |
-            target/${{ matrix.target }}/release/uv
-            target/${{ matrix.target }}/release/uvx
-          if-no-files-found: error
-
       - name: "Upload zip"
-        if: matrix.target == 'x86_64-unknown-linux-musl'
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
-          name: uv-${{ matrix.target }}-zip
+          name: uv-x86_64-unknown-linux-musl-${{ github.ref_name }}
           path: |
             dist/*.zip
             dist/*.zip.sha256
           if-no-files-found: error
+
+      - name: "Create GitHub Release"
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          TAG="${{ github.ref_name }}"
+          REPO="${{ github.repository }}"
+
+          # 发布说明写入文件，避免在多行字符串里处理引号。
+          printf '%s\n' \
+            'Linux 静态构建（musl），适用于 Ubuntu 24.04 及更新的发行版。' \
+            '' \
+            '- 目标三元组：`x86_64-unknown-linux-musl`（`static-pie`，不依赖目标机 libc）' \
+            '- 归档内容：`uv` 与 `uvx`（平铺，解压后自带可执行权限；`uvx` 需与 `uv` 同目录）' \
+            '' \
+            '校验：`sha256sum -c uv-'"${TAG}"'-x86_64-unknown-linux-musl.zip.sha256`' \
+            > dist/notes.md
+
+          if gh release view "${TAG}" --repo "${REPO}" >/dev/null 2>&1; then
+            # 重新运行同一 tag（例如从 UI 重跑）时，覆盖已有资产。
+            gh release upload "${TAG}" dist/*.zip dist/*.zip.sha256 \
+              --repo "${REPO}" --clobber
+          else
+            gh release create "${TAG}" \
+              --repo "${REPO}" \
+              --title "uv ${TAG}" \
+              --latest \
+              --verify-tag \
+              --notes-file dist/notes.md \
+              dist/*.zip dist/*.zip.sha256
+          fi
