@@ -1,12 +1,16 @@
 # Linux 构建（fork 定制）。
 #
-# 阶段 2：在阶段 1（gnu 构建）基础上加入 `x86_64-unknown-linux-musl` 静态构建，
-# 并校验产物确实是静态链接。
+# 阶段 3：为 `x86_64-unknown-linux-musl` 追加 zip 打包（含 `.sha256`）。
 #
 # 两个目标的定位：
 # - `x86_64-unknown-linux-gnu`：在 `ubuntu-24.04` 上原生构建，要求 glibc >= 2.39，
-#   仅适用于 Ubuntu 24.04 及更新的发行版；
-# - `x86_64-unknown-linux-musl`：全静态，不依赖目标机的 libc，可携带到任意 Linux。
+#   仅适用于 Ubuntu 24.04 及更新的发行版；只上传裸二进制，不打 zip。
+# - `x86_64-unknown-linux-musl`：全静态，不依赖目标机的 libc，可携带到任意 Linux；
+#   打包为 `uv-<version>-x86_64-unknown-linux-musl.zip`（内含 `uv` 与 `uvx` 两个文件）。
+#
+# zip 在 Linux 侧生成，因此会正确记录可执行权限位，解压后无需 `chmod +x`。
+# 归档采用平铺结构（`zip -j`）：解压后即得到同目录下的 `uv` 与 `uvx`，
+# 而 `uvx` 会查找同目录的 `uv`（见 `crates/uv/src/bin/uvx.rs`），二者必须放在一起。
 #
 # musl 目标在 Linux 上只需一个面向 musl 的 C 编译器（`musl-tools` 的 `musl-gcc`）：
 # 依赖树里需要 C 工具链的只有 `aws-lc-sys`（C + 汇编，无 C++）与 `zstd-sys`/jemalloc。
@@ -55,7 +59,7 @@ jobs:
         if: matrix.target == 'x86_64-unknown-linux-musl'
         run: |
           sudo apt-get update
-          sudo apt-get install -y musl-tools
+          sudo apt-get install -y musl-tools zip unzip
 
       # `rust-toolchain.toml` 固定了工具链版本，rustup 会在首次调用 cargo 时自动安装。
       - name: "Show toolchain"
@@ -88,11 +92,46 @@ jobs:
           file target/${{ matrix.target }}/release/uv
           file target/${{ matrix.target }}/release/uv | grep -qE 'statically linked|static-pie linked'
 
+      # 阶段 4 接入 Release 时，归档名会改为携带 fork 标签（如 `v0.12.5-unjx.N`）。
+      - name: "Package zip"
+        if: matrix.target == 'x86_64-unknown-linux-musl'
+        env:
+          UV_HOME: ${{ runner.temp }}/uv-home
+        run: |
+          set -euo pipefail
+          VERSION=$(./target/${{ matrix.target }}/release/uv --version | awk '{print $2}')
+          ARCHIVE="uv-${VERSION}-${{ matrix.target }}.zip"
+          mkdir -p dist/pkg
+          cp target/${{ matrix.target }}/release/uv dist/pkg/
+          cp target/${{ matrix.target }}/release/uvx dist/pkg/
+          # `-j` 平铺：压缩包内只有 `uv` 与 `uvx` 两个条目（保留可执行权限位）。
+          (cd dist/pkg && zip -j "../${ARCHIVE}" uv uvx)
+          sha256sum "dist/${ARCHIVE}" > "dist/${ARCHIVE}.sha256"
+          echo "--- archive ---"
+          unzip -l "dist/${ARCHIVE}"
+          echo "--- sha256 ---"
+          cat "dist/${ARCHIVE}.sha256"
+          # 校验解压后两个文件都带可执行权限位（Linux 侧打包的主要收益）。
+          mkdir -p dist/verify
+          (cd dist/verify && unzip -q "../${ARCHIVE}" && test -x uv && test -x uvx)
+          echo "executable bits preserved"
+
       - name: "Upload binaries"
+        if: matrix.target == 'x86_64-unknown-linux-gnu'
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: uv-${{ matrix.target }}
           path: |
             target/${{ matrix.target }}/release/uv
             target/${{ matrix.target }}/release/uvx
+          if-no-files-found: error
+
+      - name: "Upload zip"
+        if: matrix.target == 'x86_64-unknown-linux-musl'
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: uv-${{ matrix.target }}-zip
+          path: |
+            dist/*.zip
+            dist/*.zip.sha256
           if-no-files-found: error
