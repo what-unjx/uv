@@ -2686,6 +2686,7 @@ impl VersionRequest {
     ///
     /// WARNING: Use [`VersionRequest::matches_interpreter`] too. This method is only suitable to
     /// avoid querying interpreters if it's clear it cannot fulfill the request.
+    #[cfg(windows)]
     fn matches_version(&self, version: &PythonVersion) -> bool {
         match self {
             Self::Any | Self::Default => true,
